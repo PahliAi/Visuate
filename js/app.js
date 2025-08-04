@@ -1430,7 +1430,7 @@ class EquateApp {
             }
 
             // Configuration
-            const config = {
+            const plotlyConfig = {
                 responsive: true,
                 displayModeBar: true,
                 modeBarButtonsToRemove: ['pan2d', 'lasso2d', 'select2d'],
@@ -1439,7 +1439,7 @@ class EquateApp {
             };
 
             // Create the chart - let it fill the container naturally
-            Plotly.newPlot('portfolioChart', traces, layout, config);
+            Plotly.newPlot('portfolioChart', traces, layout, plotlyConfig);
 
 
         } catch (error) {
