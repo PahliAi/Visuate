@@ -500,7 +500,9 @@ class PortfolioCalculator {
         return this.transactionData.entries
             .filter(entry => 
                 entry.orderType === 'Sell' || 
-                entry.orderType === 'Sell with price limit'
+                entry.orderType === 'Sell with price limit' ||
+                entry.orderType === 'Sell at market price' ||
+                entry.orderType === 'Transfer'
             )
             .filter(entry => entry.status === 'Executed')
             .reduce((sum, entry) => sum + (entry.netProceeds || 0), 0);
@@ -732,7 +734,10 @@ class PortfolioCalculator {
             // Process sales only (dividends are already in portfolio data as reinvestments)
             if (transactionsByDate[dateStr]) {
                 transactionsByDate[dateStr].forEach(transaction => {
-                    if (transaction.orderType === 'Sell' || transaction.orderType === 'Sell with price limit') {
+                    if (transaction.orderType === 'Sell' || 
+                        transaction.orderType === 'Sell with price limit' ||
+                        transaction.orderType === 'Sell at market price' ||
+                        transaction.orderType === 'Transfer') {
                         // Sale removes shares from outstanding count
                         const quantitySold = Math.abs(transaction.quantity);
                         shareChange -= quantitySold;
