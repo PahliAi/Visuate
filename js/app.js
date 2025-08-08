@@ -48,6 +48,10 @@ class EquateApp {
         try {
             this.showLoading('Initializing application...');
             
+            // Initialize translation system
+            await translationManager.init();
+            config.debug('✅ Translation system initialized');
+            
             // Initialize database with stability checks
             await equateDB.init();
             config.debug('✅ Database initialized');
@@ -153,8 +157,9 @@ class EquateApp {
     cacheElements() {
         try {
             this.elements = {
-                // Theme
+                // Theme and Format
                 themeSelect: document.getElementById('theme'),
+                formatSelect: document.getElementById('formatSelect'),
                 
                 // Price controls (moved to Results tab)
                 manualPrice: document.getElementById('manualPriceInput'),
@@ -530,31 +535,65 @@ class EquateApp {
             this.showLoading('Processing your portfolio data...');
 
             let portfolioData, transactionData, company = 'Other', isEnglish = true; // Default to Other (safer)
+            let analysisResult = null;
 
             // Check if we have files to parse or should use cached data
             const portfolioFile = this.elements.portfolioInput.files[0];
             
             if (portfolioFile) {
-                // Parse uploaded files (new upload)
-                config.debug('🚨 TAKING NEW UPLOAD PATH - parsing fresh files');
-                config.debug('📄 Detecting date format...');
-                const transactionFile = this.elements.transactionsInput.files[0] || null;
+                // Parse uploaded files (new upload) - CACHE-AWARE ANALYZER APPROACH
+                config.debug('🚨 TAKING NEW UPLOAD PATH - using FileAnalyzer for unified analysis');
+                let transactionFile = this.elements.transactionsInput.files[0] || null;
+                const originalTransactionFile = transactionFile; // Remember original state for UI clearing
 
-                // Step 1: Check language requirements BEFORE parsing
-                config.debug('🌐 Checking file language...');
-                isEnglish = await fileParser.detectLanguage(portfolioFile);
-                config.debug('🔍 Language Detection Result:', isEnglish);
+                // Get cached data for FileAnalyzer to handle all validation
+                const cachedData = await equateDB.getPortfolioData();
 
-                if (!isEnglish) {
-                    this.hideLoading();
-                    this.showError('This app only works if EquatePlus exported file language is English');
-                    return;
+                // FileAnalyzer handles all validation, cache checks, and compatibility
+                config.debug('🔍 Starting cache-aware unified file set analysis...');
+                analysisResult = await fileAnalyzer.analyzeFileSet(portfolioFile, transactionFile, cachedData);
+                
+                // Handle FileAnalyzer results
+                if (analysisResult.shouldClearCachedTransactions) {
+                    config.debug('🗑️ Clearing cached transaction data due to currency mismatch');
+                    await equateDB.clearTransactionData();
+                    
+                    // Immediately update drop zone UI to reflect cache clearing
+                    const clearedDbInfo = await equateDB.getDatabaseInfo();
+                    this.updateDropZonesForCachedData(clearedDbInfo);
+                }
+                
+                // Clear transaction file input if it was rejected by FileAnalyzer
+                if (originalTransactionFile && analysisResult.errors.some(e => e.type === 'CURRENCY_MISMATCH')) {
+                    config.debug('🗑️ Clearing rejected transaction file from UI');
+                    this.elements.transactionsInput.value = ''; // Clear the file input
+                    this.handleFileSelect(this.elements.transactionsInput, 'transactionsZone'); // Update visual styling
+                }
+                
+                config.debug('📊 File Analysis Results:', fileAnalyzer.getAnalysisSummary(analysisResult));
+
+                // Handle analysis errors (currency mismatches, etc.)
+                if (analysisResult.errors.length > 0) {
+                    this.handleAnalysisErrors(analysisResult.errors);
+                    // Continue with portfolio-only analysis if transaction file was rejected
+                    transactionFile = null;
                 }
 
-                // Step 2: Detect date format before parsing any data
+                // Display warnings to user
+                if (analysisResult.warnings.length > 0) {
+                    this.displayAnalysisWarnings(analysisResult.warnings);
+                }
+
+                // Step 2: Apply UI settings from analysis
+                this.applyUISettings(analysisResult.unified);
+                
+                // Legacy compatibility
+                isEnglish = (analysisResult.unified.language === 'english');
+
+                // Step 3: Detect date format before parsing any data
                 const detectedFormat = await fileParser.detectDateFormat(portfolioFile, transactionFile);
                 
-                // Step 3: If ambiguous, ask user to choose
+                // If ambiguous, ask user to choose
                 if (detectedFormat === null) {
                     config.debug('📅 All string dates are ambiguous, asking user...');
                     await fileParser.promptUserForDateFormat();
@@ -562,34 +601,34 @@ class EquateApp {
                     config.debug('📅 No string dates found, skipping format detection');
                 }
 
-                config.debug('📄 Parsing uploaded files...');
-                portfolioData = await fileParser.parsePortfolioFile(portfolioFile);
+                // Step 4: Parse files with analysis context
+                config.debug('📄 Parsing files with pre-analysis context...');
+                portfolioData = await fileParser.parsePortfolioFile(portfolioFile, analysisResult);
                 config.debug('Portfolio data parsed:', portfolioData);
 
-                // Step 4: Detect company (BEFORE transaction parsing)
-                company = fileParser.detectCompany(portfolioData); // Update outer scope variable
-                
-                config.debug('🔍 Detection Results (BEFORE transactions) - English:', isEnglish, ', Company:', company);
-
-                // Parse transaction data if provided
-                if (transactionFile) {
-                    transactionData = await fileParser.parseTransactionFile(transactionFile);
+                // Parse transaction data if compatible
+                if (transactionFile && analysisResult.errors.length === 0) {
+                    transactionData = await fileParser.parseTransactionFile(transactionFile, analysisResult);
                     fileParser.validateUserIds();
                     config.debug('Transaction data parsed:', transactionData);
-                    
-                    // Re-check company detection after transaction parsing
-                    const companyAfterTransactions = fileParser.detectCompany(portfolioData);
-                    config.debug('🔍 Company detection AFTER transactions:', companyAfterTransactions);
-                    if (companyAfterTransactions !== company) {
-                        config.error('🚨 COMPANY CHANGED after transaction parsing!', {
-                            before: company,
-                            after: companyAfterTransactions
-                        });
-                    }
                 }
 
-                // Save to database with detection results
-                await equateDB.savePortfolioData(portfolioData, transactionData, portfolioData.userId, isEnglish, company);
+                // Step 5: Enhanced company detection using both files
+                company = fileParser.detectCompanyFromBothFiles(portfolioData, transactionData);
+                
+                config.debug('🔍 Final Detection Results:', {
+                    language: analysisResult.unified.language,
+                    currency: analysisResult.unified.currency, 
+                    company: company,
+                    hasTransactions: !!transactionData
+                });
+
+                // Save to database with detection results including currency
+                await equateDB.savePortfolioData(portfolioData, transactionData, portfolioData.userId, isEnglish, company, this.detectedCurrency);
+                
+                // Update drop zone indicators to reflect current cache state (especially after transaction rejection)
+                const updatedDbInfo = await equateDB.getDatabaseInfo();
+                this.updateDropZonesForCachedData(updatedDbInfo);
             } else if (this.hasData) {
                 // Use cached data (regenerate with existing data)
                 config.debug('🚨 TAKING CACHED DATA PATH - using existing data');
@@ -611,7 +650,7 @@ class EquateApp {
             }
 
             // Set up calculator
-            portfolioCalculator.setPortfolioData(portfolioData, transactionData);
+            portfolioCalculator.setPortfolioData(portfolioData, transactionData, this.detectedCurrency);
             
             // Debug: Check company value before calling loadHistoricalPrices
             config.debug('🔍 About to call loadHistoricalPrices with company:', company);
@@ -675,6 +714,130 @@ class EquateApp {
     }
 
     /**
+     * Apply UI settings from file analysis result
+     * @param {Object} unifiedAnalysis - Unified analysis result
+     */
+    applyUISettings(unifiedAnalysis) {
+        config.debug('🎨 Applying UI settings from analysis:', unifiedAnalysis);
+        
+        // Set UI language (user can still override via language selector)
+        if (unifiedAnalysis.language !== translationManager.getCurrentLanguage()) {
+            config.debug('🌐 Auto-switching UI language to:', unifiedAnalysis.language);
+            translationManager.currentLanguage = unifiedAnalysis.language;
+            
+            // Update language selector
+            const languageSelect = document.getElementById('languageSelect');
+            if (languageSelect) {
+                languageSelect.value = unifiedAnalysis.language;
+            }
+            
+            // Save preference
+            if (typeof equateDB !== 'undefined') {
+                equateDB.savePreference('selected_language', unifiedAnalysis.language);
+            }
+        }
+        
+        // Store detected currency for display formatting
+        this.detectedCurrency = unifiedAnalysis.currency;
+        
+        config.debug('✅ UI settings applied:', {
+            language: translationManager.getCurrentLanguage(),
+            currency: this.detectedCurrency
+        });
+    }
+
+    /**
+     * Handle analysis errors (e.g., currency mismatches)
+     * @param {Array} errors - Array of error objects
+     */
+    handleAnalysisErrors(errors) {
+        config.warn('⚠️ Analysis errors detected:', errors);
+        
+        errors.forEach(error => {
+            if (error.type === 'CURRENCY_MISMATCH') {
+                this.showWarning(
+                    'Currency Mismatch',
+                    `${error.message}\n\n${error.resolution}`,
+                    'warning'
+                );
+            } else {
+                this.showWarning(
+                    'File Analysis Error',
+                    `${error.message}\n\n${error.resolution}`,
+                    'error'
+                );
+            }
+        });
+    }
+
+    /**
+     * Display analysis warnings to user
+     * @param {Array} warnings - Array of warning objects
+     */
+    displayAnalysisWarnings(warnings) {
+        config.debug('ℹ️ Analysis warnings:', warnings);
+        
+        warnings.forEach(warning => {
+            if (warning.type === 'LANGUAGE_MISMATCH') {
+                this.showInfo(
+                    'Language Difference Detected',
+                    `${warning.message}\n\n${warning.resolution}`,
+                    'info'
+                );
+            }
+        });
+    }
+
+    /**
+     * Show warning message to user
+     */
+    showWarning(title, message, type = 'warning') {
+        // Create a simple alert for now - can be enhanced with custom UI later
+        const icon = type === 'error' ? '❌' : type === 'info' ? 'ℹ️' : '⚠️';
+        alert(`${icon} ${title}\n\n${message}`);
+    }
+
+    /**
+     * Show info message to user
+     */
+    showInfo(title, message, type = 'info') {
+        this.showWarning(title, message, type);
+    }
+
+    /**
+     * Get currency symbol for a given currency code
+     * @param {String} currency - Currency code (e.g., 'EUR', 'USD', 'GBP')
+     * @returns {String} Currency symbol
+     */
+    getCurrencySymbol(currency) {
+        if (!currency) return '';
+        
+        config.debug('🔍 getCurrencySymbol called with:', currency, typeof currency);
+        
+        if (typeof CurrencyMappings !== 'undefined') {
+            const mappings = new CurrencyMappings();
+            const currencyInfo = mappings.getByCode(currency);
+            
+            config.debug('🔍 Currency lookup result:', {
+                currency,
+                found: !!currencyInfo,
+                symbol: currencyInfo?.symbol,
+                name: currencyInfo?.name
+            });
+            
+            if (currencyInfo && currencyInfo.symbol) {
+                return currencyInfo.symbol;
+            } else {
+                config.debug(`⚠️ Unknown currency in getCurrencySymbol: ${currency} - using currency code as display`);
+                return currency; // Use the currency code itself (e.g., "THB", "XYZ")
+            }
+        } else {
+            console.warn('⚠️ CurrencyMappings not available in getCurrencySymbol');
+            return '';
+        }
+    }
+
+    /**
      * Load cached data
      */
     async loadCachedData() {
@@ -686,8 +849,12 @@ class EquateApp {
                 throw new Error('No cached data found');
             }
 
+            // Get currency from cached data (if it was stored)
+            this.detectedCurrency = cachedData.currency || null;
+            config.debug('💰 Retrieved currency from cached data:', this.detectedCurrency);
+            
             // Set up calculator with cached data
-            portfolioCalculator.setPortfolioData(cachedData.portfolioData, cachedData.transactionData);
+            portfolioCalculator.setPortfolioData(cachedData.portfolioData, cachedData.transactionData, this.detectedCurrency);
             
             // For cached data, detect company again or default to Allianz
             const company = fileParser.detectCompany(cachedData.portfolioData);
@@ -820,6 +987,11 @@ class EquateApp {
         this.updatePriceSource();
         this.showCurrencyWarning();
         
+        // Update UI language (labels only, after values are set)
+        if (typeof translationManager !== 'undefined') {
+            translationManager.updateUILanguage();
+        }
+        
         // Enable export buttons
         const exportButtons = document.querySelectorAll('.export-btn');
         exportButtons.forEach(btn => btn.disabled = false);
@@ -831,7 +1003,7 @@ class EquateApp {
     updateMetricsDisplay() {
         if (!this.currentCalculations) return;
 
-        const currency = this.currentCalculations.currency || 'EUR'; // Auto-detected currency
+        const currency = this.detectedCurrency; // Single source of truth - no fallback needed
         const decimals = 2; // Hardcoded to 2 decimals
 
         this.elements.userInvestment.textContent = this.formatCurrency(this.currentCalculations.userInvestment, currency, decimals);
@@ -873,12 +1045,15 @@ class EquateApp {
         const indicator = this.elements.priceSource;
         const text = indicator.querySelector('.indicator-text');
         
+        const currency = this.detectedCurrency;
+        const currencySymbol = this.getCurrencySymbol(currency);
+        
         if (this.currentCalculations.priceSource === 'manual') {
             indicator.classList.add('manual');
-            text.innerHTML = `<strong>Price:</strong> €${this.currentCalculations.currentPrice.toFixed(2)} (manual input)`;
+            text.innerHTML = `<strong>${translationManager.t('price_label')}:</strong> ${currencySymbol}${this.currentCalculations.currentPrice.toFixed(2)} (manual input)`;
         } else {
             indicator.classList.remove('manual');
-            text.innerHTML = `<strong>Price:</strong> €${this.currentCalculations.currentPrice.toFixed(2)} as of ${this.currentCalculations.priceDate}`;
+            text.innerHTML = `<strong>${translationManager.t('price_label')}:</strong> ${currencySymbol}${this.currentCalculations.currentPrice.toFixed(2)} ${translationManager.t('as_of_label')} ${this.currentCalculations.priceDate}`;
         }
     }
 
@@ -1164,6 +1339,10 @@ class EquateApp {
             const theme = await equateDB.getPreference('theme') || 'light';
             this.elements.themeSelect.value = theme;
             this.switchTheme(theme);
+
+            const numberFormat = await equateDB.getPreference('numberFormat') || 'us';
+            this.elements.formatSelect.value = numberFormat;
+            this.setNumberFormat(numberFormat);
         } catch (error) {
             config.error('Error loading preferences:', error);
         }
@@ -1177,24 +1356,103 @@ class EquateApp {
         equateDB.savePreference('theme', theme);
     }
 
+    /**
+     * Set number format and refresh all displays
+     */
+    setNumberFormat(format) {
+        try {
+            console.log('App.setNumberFormat called with:', format);
+            this.numberFormat = format;
+            equateDB.savePreference('numberFormat', format);
+            
+            // Refresh all displays if we have calculation data
+            if (this.currentCalculations) {
+                console.log('Refreshing displays with new format:', format);
+                this.updateMetricsDisplay();
+                this.refreshCharts();
+                console.log('Format updated successfully to:', format);
+            } else {
+                console.log('No calculations to refresh yet - format will apply when data is loaded');
+            }
+        } catch (error) {
+            console.error('Error in App.setNumberFormat:', error);
+        }
+    }
+
+
+    /**
+     * Refresh all charts with current number format
+     */
+    refreshCharts() {
+        // Only refresh charts if we have valid calculation data
+        if (!this.currentCalculations || !this.currentCalculations.userInvestment) {
+            console.log('No valid calculations available - skipping chart refresh');
+            console.log('currentCalculations:', this.currentCalculations);
+            return;
+        }
+        
+        // Get the same parameters as the original chart creation
+        const calc = this.currentCalculations;
+        const currencySymbol = this.getCurrencySymbol(calc.currency);
+        const fontColor = getComputedStyle(document.documentElement).getPropertyValue('--text-primary').trim();
+        const bgColor = getComputedStyle(document.documentElement).getPropertyValue('--bg-secondary').trim();
+        
+        // Recreate all charts to apply new number formatting
+        this.createPortfolioChart();
+        this.createPerformanceBarChart(calc, currencySymbol, fontColor, bgColor);
+        this.createInvestmentPieChart(calc, currencySymbol, fontColor, bgColor);
+    }
+
+
+
+    /**
+     * Core number formatting utility - handles both US and EU formats
+     * @param {number} value - Number to format
+     * @param {number} decimals - Number of decimal places
+     * @returns {string} Formatted number string
+     */
+    formatNumber(value, decimals = 2) {
+        if (value == null || isNaN(value)) return '-';
+        
+        // Get user's preferred format (default to 'us' if not set)
+        const format = this.numberFormat || 'us';
+        
+        if (format === 'eu') {
+            // European format: 10.000,00
+            return value.toLocaleString('de-DE', {
+                minimumFractionDigits: decimals,
+                maximumFractionDigits: decimals
+            });
+        } else {
+            // US format: 10,000.00
+            return value.toLocaleString('en-US', {
+                minimumFractionDigits: decimals,
+                maximumFractionDigits: decimals
+            });
+        }
+    }
 
     /**
      * Format currency
      */
-    formatCurrency(value, currency = 'EUR', decimals = 2) {
-        const symbols = { 'EUR': '€', 'USD': '$', 'GBP': '£' };
-        const symbol = symbols[currency] || '€';
-        return `${symbol}${value.toLocaleString('en-US', { 
-            minimumFractionDigits: decimals, 
-            maximumFractionDigits: decimals 
-        })}`;
+    formatCurrency(value, currency = null, decimals = 2) {
+        // Use getCurrencySymbol which handles unknown currencies properly
+        const symbol = this.getCurrencySymbol(currency);
+        
+        const formattedNumber = this.formatNumber(value, decimals);
+        
+        // Only add symbol if we found a valid one, otherwise just show the number
+        return symbol ? `${symbol} ${formattedNumber}` : formattedNumber;
     }
 
     /**
      * Format percentage
      */
     formatPercentage(value, decimals = 2) {
-        return `${value.toFixed(decimals)}%`;
+        if (value == null || isNaN(value)) return '-';
+        
+        const formattedNumber = this.formatNumber(value, decimals);
+        return `${formattedNumber}%`;
     }
 
     /**
@@ -1234,6 +1492,22 @@ class EquateApp {
         }
 
         try {
+            // Get detected currency - NO FALLBACKS, if we don't have it, we don't use one
+            let currency = this.detectedCurrency;
+            
+            // Only use calculations currency if it's not 'UNKNOWN'
+            if (!currency && this.currentCalculations && this.currentCalculations.currency !== 'UNKNOWN') {
+                currency = this.currentCalculations.currency;
+            }
+            
+            config.debug('🔍 Chart currency resolution:', {
+                detectedCurrency: this.detectedCurrency,
+                calculationsOriginCurrency: this.currentCalculations?.currency,
+                finalCurrency: currency
+            });
+            
+            const currencySymbol = currency ? this.getCurrencySymbol(currency) : '';
+            
             // Get timeline data from calculator
             const timelineData = await portfolioCalculator.getPortfolioTimeline();
             
@@ -1258,6 +1532,7 @@ class EquateApp {
             const dates = filteredData.map(d => d.date);
             const portfolioValues = filteredData.map(d => d.portfolioValue);
             const profitLoss = filteredData.map(d => d.profitLoss);
+            const stockPrices = filteredData.map(d => d.currentPrice);
             
             // Find transaction points with reasons
             const transactionPoints = filteredData.filter(d => d.hasTransaction && d.reason);
@@ -1288,11 +1563,11 @@ class EquateApp {
                     y: portfolioValues,
                     type: 'scatter',
                     mode: 'lines',
-                    name: 'Portfolio Value',
+                    name: translationManager.t('portfolio_value_legend'),
                     line: { color: '#3498db', width: 3 },
-                    hovertemplate: '<b>Portfolio Value</b><br>' +
-                                 'Date: %{x|%d-%m-%Y}<br>' +
-                                 'Value: €%{y:,.2f}<br>' +
+                    hovertemplate: `<b>${translationManager.t('portfolio_value_legend')}</b><br>` +
+                                 `${translationManager.t('chart_date_label')}: %{x|%d-%m-%Y}<br>` +
+                                 `${translationManager.t('chart_value_label')}: ${currencySymbol}%{y:,.2f}<br>` +
                                  '<extra></extra>'
                 },
                 {
@@ -1300,11 +1575,24 @@ class EquateApp {
                     y: profitLoss,
                     type: 'scatter',
                     mode: 'lines',
-                    name: 'Profit/Loss',
+                    name: translationManager.t('profit_loss_legend'),
                     line: { color: '#27ae60', width: 2, dash: 'dot' },
-                    hovertemplate: '<b>Profit/Loss</b><br>' +
-                                 'Date: %{x|%d-%m-%Y}<br>' +
-                                 'P/L: €%{y:,.2f}<br>' +
+                    hovertemplate: `<b>${translationManager.t('profit_loss_legend')}</b><br>` +
+                                 `${translationManager.t('chart_date_label')}: %{x|%d-%m-%Y}<br>` +
+                                 `${translationManager.t('chart_value_label')}: ${currencySymbol}%{y:,.2f}<br>` +
+                                 '<extra></extra>'
+                },
+                {
+                    x: dates,
+                    y: stockPrices,
+                    type: 'scatter',
+                    mode: 'lines',
+                    name: translationManager.t('stock_price_legend'),
+                    line: { color: '#95a5a6', width: 1 },
+                    yaxis: 'y2',
+                    hovertemplate: `<b>${translationManager.t('stock_price_legend')}</b><br>` +
+                                 `${translationManager.t('chart_date_label')}: %{x|%d-%m-%Y}<br>` +
+                                 `${translationManager.t('chart_share_price_label')}: ${currencySymbol}%{y:,.2f}<br>` +
                                  '<extra></extra>'
                 }
             ];
@@ -1316,7 +1604,7 @@ class EquateApp {
                     y: transactionValues,
                     type: 'scatter',
                     mode: 'markers',
-                    name: 'Transactions',
+                    name: translationManager.t('transaction_legend'),
                     marker: {
                         color: '#e74c3c',
                         size: 12,
@@ -1324,9 +1612,9 @@ class EquateApp {
                         line: { color: 'white', width: 2 }
                     },
                     text: transactionReasons,
-                    hovertemplate: '<b>Transaction</b><br>' +
-                                 'Date: %{x|%d-%m-%Y}<br>' +
-                                 'Value: €%{y:,.0f}<br>' +
+                    hovertemplate: `<b>${translationManager.t('transaction_legend')}</b><br>` +
+                                 `${translationManager.t('chart_date_label')}: %{x|%d-%m-%Y}<br>` +
+                                 `${translationManager.t('chart_value_label')}: ${currencySymbol}%{y:,.0f}<br>` +
                                  '%{text}<br>' +
                                  '<extra></extra>'
                 });
@@ -1340,17 +1628,17 @@ class EquateApp {
                     y: manualPricePoints.map(d => d.portfolioValue),
                     type: 'scatter',
                     mode: 'markers',
-                    name: 'Manual Price (Portfolio)',
+                    name: translationManager.t('manual_price_scenario_legend'),
                     marker: {
                         color: '#f39c12',
                         size: 15,
                         symbol: 'star',
                         line: { color: 'white', width: 2 }
                     },
-                    hovertemplate: '<b>Manual Price Scenario</b><br>' +
-                                 'Date: %{x|%d-%m-%Y}<br>' +
-                                 'Portfolio Value: €%{y:,.2f}<br>' +
-                                 'Share Price: €' + this.currentCalculations.currentPrice.toFixed(2) + '<br>' +
+                    hovertemplate: `<b>${translationManager.t('manual_price_scenario_legend')}</b><br>` +
+                                 `${translationManager.t('chart_date_label')}: %{x|%d-%m-%Y}<br>` +
+                                 `${translationManager.t('portfolio_value_legend')}: ${currencySymbol}%{y:,.2f}<br>` +
+                                 `${translationManager.t('chart_share_price_label')}: ${currencySymbol}${this.currentCalculations.currentPrice.toFixed(2)}<br>` +
                                  '<extra></extra>'
                 });
 
@@ -1360,29 +1648,30 @@ class EquateApp {
                     y: manualPricePoints.map(d => d.profitLoss),
                     type: 'scatter',
                     mode: 'markers',
-                    name: 'Manual Price (P/L)',
+                    name: `${translationManager.t('manual_price_scenario_legend')} (${translationManager.t('profit_loss_legend')})`,
                     marker: {
                         color: '#f39c12',
                         size: 15,
                         symbol: 'star',
                         line: { color: 'white', width: 2 }
                     },
-                    hovertemplate: '<b>Manual Price P/L</b><br>' +
-                                 'Date: %{x|%d-%m-%Y}<br>' +
-                                 'Profit/Loss: €%{y:,.2f}<br>' +
-                                 'Share Price: €' + this.currentCalculations.currentPrice.toFixed(2) + '<br>' +
+                    hovertemplate: `<b>${translationManager.t('manual_price_scenario_legend')} ${translationManager.t('profit_loss_legend')}</b><br>` +
+                                 `${translationManager.t('chart_date_label')}: %{x|%d-%m-%Y}<br>` +
+                                 `${translationManager.t('profit_loss_legend')}: ${currencySymbol}%{y:,.2f}<br>` +
+                                 `${translationManager.t('chart_share_price_label')}: ${currencySymbol}${this.currentCalculations.currentPrice.toFixed(2)}<br>` +
                                  '<extra></extra>'
                 });
             }
 
-            // Layout configuration - single Y-axis for both Portfolio Value and Profit/Loss
+            // Layout configuration - dual Y-axis (left: portfolio values, right: stock price)
             const layout = {
+                separators: this.numberFormat === 'eu' ? ',.' : '.,',
                 title: {
-                    text: 'Portfolio Performance Timeline',
+                    text: translationManager.t('portfolio_timeline_title'),
                     font: { size: 18 }
                 },
                 xaxis: {
-                    title: 'Date',
+                    title: translationManager.t('chart_date_axis_label'),
                     type: 'date',
                     tickangle: -45,
                     rangeselector: {
@@ -1398,14 +1687,27 @@ class EquateApp {
                     }
                 },
                 yaxis: {
-                    title: 'Value (€)',
+                    title: `${translationManager.t('chart_value_axis_label')} (${currencySymbol})`,
+                    titlefont: { color: '#3498db' },
+                    tickfont: { color: '#3498db' },
                     tickformat: ',.0f',
                     zeroline: true,
                     zerolinecolor: '#666',
                     zerolinewidth: 1,
                     fixedrange: false,
                     scaleanchor: null,
-                    scaleratio: null
+                    scaleratio: null,
+                    side: 'left'
+                },
+                yaxis2: {
+                    title: `${translationManager.t('stock_price_legend')} (${currencySymbol})`,
+                    titlefont: { color: '#95a5a6' },
+                    tickfont: { color: '#95a5a6' },
+                    tickformat: ',.2f',
+                    overlaying: 'y',
+                    side: 'right',
+                    fixedrange: false,
+                    showgrid: false
                 },
                 legend: {
                     x: 0,
@@ -1414,7 +1716,7 @@ class EquateApp {
                 },
                 hovermode: 'closest',
                 dragmode: 'zoom',
-                margin: { l: 80, r: 80, t: 50, b: 80 },
+                margin: { l: 80, r: 120, t: 50, b: 80 },
                 plot_bgcolor: 'rgba(0,0,0,0)',
                 paper_bgcolor: 'rgba(0,0,0,0)',
                 autosize: true,
@@ -1441,6 +1743,15 @@ class EquateApp {
             // Create the chart - let it fill the container naturally
             Plotly.newPlot('portfolioChart', traces, layout, plotlyConfig);
 
+            // Store timeline data and currency for language change updates
+            this.lastTimelineData = timelineData;
+            this.lastCurrencyUsed = currency;
+            
+            // Show disclaimer if total sold is 0 but portfolio value differs from timeline end
+            this.updateTimelineDisclaimer(timelineData, currencySymbol);
+            
+            // Show legend interaction hint overlay for 4 seconds
+            this.showLegendInteractionHint();
 
         } catch (error) {
             config.error('Error creating portfolio chart:', error);
@@ -1448,6 +1759,170 @@ class EquateApp {
                 '<div style="display: flex; align-items: center; justify-content: center; height: 100%; color: #666;">' +
                 'Error loading chart: ' + error.message + '</div>';
         }
+    }
+
+    /**
+     * Show legend interaction hint overlay for 4 seconds
+     */
+    showLegendInteractionHint() {
+        // Check if we should show the hint (only for first time or when stock price line is newly added)
+        const chartContainer = document.getElementById('portfolioChart');
+        if (!chartContainer) return;
+
+        // Create overlay element
+        const overlay = document.createElement('div');
+        overlay.id = 'legendHintOverlay';
+        overlay.innerHTML = translationManager.t('legend_interaction_hint');
+        
+        // Style the overlay
+        overlay.style.cssText = `
+            position: absolute;
+            left: 50%;
+            top: 180px;
+            transform: translateX(-50%);
+            background: rgba(120, 120, 120, 0.9);
+            color: white;
+            padding: 12px 20px;
+            border-radius: 8px;
+            font-size: 14px;
+            font-weight: 500;
+            white-space: nowrap;
+            z-index: 1000;
+            opacity: 0;
+            transition: opacity 0.3s ease-in-out;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+        `;
+        
+        // Position relative to chart container
+        const chartWrapper = chartContainer.closest('.chart-container');
+        if (chartWrapper) {
+            chartWrapper.style.position = 'relative';
+            chartWrapper.appendChild(overlay);
+        } else {
+            chartContainer.style.position = 'relative';
+            chartContainer.appendChild(overlay);
+        }
+        
+        // Fade in
+        setTimeout(() => {
+            overlay.style.opacity = '1';
+        }, 100);
+        
+        // Fade out and remove after 4 seconds
+        setTimeout(() => {
+            overlay.style.opacity = '0';
+            setTimeout(() => {
+                if (overlay.parentNode) {
+                    overlay.parentNode.removeChild(overlay);
+                }
+            }, 300);
+        }, 4000);
+    }
+
+    /**
+     * Refresh timeline disclaimer with current language (called when language changes)
+     */
+    refreshTimelineDisclaimer() {
+        config.debug('🌐 refreshTimelineDisclaimer called', {
+            hasCalculations: !!this.currentCalculations,
+            hasTimelineData: !!this.lastTimelineData,
+            detectedCurrency: this.detectedCurrency,
+            calculationsCurrency: this.currentCalculations?.currency,
+            totalSold: this.currentCalculations?.totalSold
+        });
+        
+        if (this.currentCalculations && this.lastTimelineData) {
+            // NO FALLBACKS - if we don't have currency, we don't use one
+            let currency = this.detectedCurrency;
+            
+            // Only use calculations currency if it's not 'UNKNOWN'
+            if (!currency && this.currentCalculations && this.currentCalculations.currency !== 'UNKNOWN') {
+                currency = this.currentCalculations.currency;
+            }
+            
+            // Try the stored currency from timeline creation (but still no fallbacks like EUR)
+            if (!currency || currency === 'UNKNOWN') {
+                currency = this.lastCurrencyUsed;
+            }
+            
+            config.debug('🔍 Currency sources for disclaimer refresh:', {
+                detectedCurrency: this.detectedCurrency,
+                calculationsCurrency: this.currentCalculations.currency,
+                lastCurrencyUsed: this.lastCurrencyUsed,
+                finalCurrency: currency
+            });
+            
+            // If no valid currency found, use empty string (no symbol)
+            const currencySymbol = (currency && currency !== 'UNKNOWN') ? this.getCurrencySymbol(currency) : '';
+            this.updateTimelineDisclaimer(this.lastTimelineData, currencySymbol);
+            config.debug('🌐 Refreshed timeline disclaimer for language change with currency:', currency);
+        } else {
+            config.debug('⚠️ Missing calculations or timeline data for disclaimer refresh');
+        }
+    }
+
+    /**
+     * Update timeline disclaimer AND total sold card disclaimer based on totalSold and value discrepancies
+     */
+    updateTimelineDisclaimer(timelineData, currencySymbol) {
+        const timelineDisclaimerElement = document.getElementById('timelineDisclaimer');
+        const totalSoldDisclaimerElement = document.getElementById('totalSoldDisclaimer');
+        
+        if (!timelineDisclaimerElement || !timelineData || timelineData.length === 0) {
+            return;
+        }
+
+        const totalSold = this.currentCalculations.totalSold;
+        
+        // Show disclaimer only if totalSold = 0 (no transaction data)
+        if (totalSold === 0) {
+            const timelineEndValue = timelineData[timelineData.length - 1].portfolioValue;
+            const currentPortfolioValue = this.currentCalculations.currentValue;
+            const estimatedSales = timelineEndValue - currentPortfolioValue;
+            
+            if (estimatedSales > 0.01) { // Show only if significant difference (> 1 cent)
+                // Format amount with currency symbol and proper locale
+                const formattedAmount = `${currencySymbol}${estimatedSales.toLocaleString('en-US', { 
+                    minimumFractionDigits: 2, 
+                    maximumFractionDigits: 2 
+                })}`;
+                
+                // Build complete disclaimer text using translations for timeline
+                const timelineDisclaimerText = `${translationManager.t('timeline_disclaimer_text')} ${formattedAmount} ${translationManager.t('timeline_disclaimer_suffix')}`;
+                
+                // Update the timeline disclaimer content
+                timelineDisclaimerElement.querySelector('.disclaimer-content').innerHTML = 
+                    `<strong>⚠️ </strong>${timelineDisclaimerText}`;
+                
+                timelineDisclaimerElement.style.display = 'block';
+                
+                // Update the Total Sold card disclaimer (small and subtle)
+                if (totalSoldDisclaimerElement) {
+                    const cardDisclaimerText = `(${formattedAmount} ${translationManager.t('card_disclaimer_suffix')})`;
+                    totalSoldDisclaimerElement.textContent = cardDisclaimerText;
+                    totalSoldDisclaimerElement.style.display = 'block';
+                    config.debug('📢 Total Sold card disclaimer updated:', cardDisclaimerText);
+                } else {
+                    config.debug('⚠️ totalSoldDisclaimerElement not found!');
+                }
+                
+                config.debug('📢 Both disclaimers shown:', {
+                    timelineEndValue,
+                    currentPortfolioValue,
+                    estimatedSales: formattedAmount,
+                    timelineText: timelineDisclaimerText,
+                    cardText: totalSoldDisclaimerElement?.textContent
+                });
+                return;
+            }
+        }
+        
+        // Hide both disclaimers in all other cases
+        timelineDisclaimerElement.style.display = 'none';
+        if (totalSoldDisclaimerElement) {
+            totalSoldDisclaimerElement.style.display = 'none';
+        }
+        config.debug('📢 Both disclaimers hidden (totalSold > 0 or no discrepancy)');
     }
 
     /**
@@ -1460,8 +1935,8 @@ class EquateApp {
 
         try {
             const calc = this.currentCalculations;
-            const currency = calc.currency || 'EUR';
-            const currencySymbol = currency === 'EUR' ? '€' : currency === 'USD' ? '$' : currency === 'GBP' ? '£' : '€';
+            const currency = this.detectedCurrency;
+            const currencySymbol = this.getCurrencySymbol(currency);
             
             // Apply theme
             const isDark = document.body.getAttribute('data-theme') === 'dark';
@@ -1490,7 +1965,7 @@ class EquateApp {
     createInvestmentPieChart(calc, currencySymbol, fontColor, bgColor) {
         const pieData = [{
             values: [calc.userInvestment, calc.companyMatch, calc.freeShares, calc.dividendIncome],
-            labels: ['Your Investment', 'Company Match', 'Free Shares', 'Dividend Income'],
+            labels: [translationManager.t('your_investment_legend'), translationManager.t('company_match_legend'), translationManager.t('free_shares_legend'), translationManager.t('dividend_income_legend')],
             type: 'pie',
             hole: 0.4, // Donut chart
             hovertemplate: '<b>%{label}</b><br>' +
@@ -1499,7 +1974,7 @@ class EquateApp {
                            '<extra></extra>',
             textinfo: 'label+percent+value',
             textposition: 'auto',
-            texttemplate: '%{label}<br>%{value:,.0f}<br>(%{percent})',
+            texttemplate: '%{label}<br>' + currencySymbol + '%{value:,.0f}<br>(%{percent})',
             marker: {
                 colors: ['#27ae60', '#3498db', '#9b59b6', '#f39c12'], // Green, Blue, Purple, Orange
                 line: {
@@ -1510,6 +1985,7 @@ class EquateApp {
         }];
 
         const pieLayout = {
+            separators: this.numberFormat === 'eu' ? ',.' : '.,',
             font: { color: fontColor, size: 12 },
             paper_bgcolor: bgColor,
             plot_bgcolor: bgColor,
@@ -1564,13 +2040,13 @@ class EquateApp {
             {
                 x: ['Total Investment', 'Total Value', 'Return on Your Investment', 'Return on Total Investment'],
                 y: [calc.userInvestment, 0, calc.userInvestment, 0],
-                name: 'Your Investment',
+                name: translationManager.t('your_investment_legend'),
                 type: 'bar',
                 marker: { color: '#27ae60' },
                 text: [currencySymbol + calc.userInvestment.toLocaleString('en-US', { maximumFractionDigits: 0 }), '', currencySymbol + calc.userInvestment.toLocaleString('en-US', { maximumFractionDigits: 0 }), ''],
                 textposition: 'inside',
                 textfont: { color: 'white', size: 12 },
-                hovertemplate: '<b>Your Investment</b><br>' +
+                hovertemplate: `<b>${translationManager.t('your_investment_legend')}</b><br>` +
                                'Amount: ' + currencySymbol + '%{y:,.2f}<br>' +
                                '<extra></extra>'
             },
@@ -1578,13 +2054,13 @@ class EquateApp {
             {
                 x: ['Total Investment', 'Total Value', 'Return on Your Investment', 'Return on Total Investment'],
                 y: [calc.companyMatch, 0, 0, 0],
-                name: 'Company Match',
+                name: translationManager.t('company_match_legend'),
                 type: 'bar',
                 marker: { color: '#3498db' },
                 text: [calc.companyMatch > 2000 ? currencySymbol + calc.companyMatch.toLocaleString('en-US', { maximumFractionDigits: 0 }) : '', '', '', ''],
                 textposition: 'inside',
                 textfont: { color: 'white', size: 12 },
-                hovertemplate: '<b>Company Match</b><br>' +
+                hovertemplate: `<b>${translationManager.t('company_match_legend')}</b><br>` +
                                'Amount: ' + currencySymbol + '%{y:,.2f}<br>' +
                                '<extra></extra>'
             },
@@ -1592,7 +2068,7 @@ class EquateApp {
             {
                 x: ['Total Investment', 'Total Value', 'Return on Your Investment', 'Return on Total Investment'],
                 y: [calc.freeShares, 0, 0, 0],
-                name: 'Free Shares',
+                name: translationManager.t('free_shares_legend'),
                 type: 'bar',
                 marker: { color: '#9b59b6' },
                 text: [calc.freeShares > 1500 ? currencySymbol + calc.freeShares.toLocaleString('en-US', { maximumFractionDigits: 0 }) : '', '', '', ''],
@@ -1606,7 +2082,7 @@ class EquateApp {
             {
                 x: ['Total Investment', 'Total Value', 'Return on Your Investment', 'Return on Total Investment'],
                 y: [calc.dividendIncome, 0, 0, 0],
-                name: 'Dividend Income',
+                name: translationManager.t('dividend_income_legend'),
                 type: 'bar',
                 marker: { color: '#f39c12' },
                 text: [calc.dividendIncome > 2000 ? currencySymbol + calc.dividendIncome.toLocaleString('en-US', { maximumFractionDigits: 0 }) : '', '', '', ''],
@@ -1620,7 +2096,7 @@ class EquateApp {
             {
                 x: ['Total Investment', 'Total Value', 'Return on Your Investment', 'Return on Total Investment'],
                 y: [0, 0, 0, calc.totalInvestment],
-                name: 'Total Investment Base',
+                name: translationManager.t('total_investment_base_legend'),
                 type: 'bar',
                 marker: { color: '#bdc3c7' },
                 text: ['', '', '', currencySymbol + calc.totalInvestment.toLocaleString('en-US', { maximumFractionDigits: 0 })],
@@ -1635,13 +2111,13 @@ class EquateApp {
             {
                 x: ['Total Investment', 'Total Value', 'Return on Your Investment', 'Return on Total Investment'],
                 y: [0, calc.currentValue, 0, 0],
-                name: 'Current Portfolio',
+                name: translationManager.t('current_portfolio_legend'),
                 type: 'bar',
                 marker: { color: '#2ecc71' },
                 text: ['', currencySymbol + calc.currentValue.toLocaleString('en-US', { maximumFractionDigits: 0 }), '', ''],
                 textposition: 'inside',
                 textfont: { color: 'white', size: 12 },
-                hovertemplate: '<b>Current Portfolio</b><br>' +
+                hovertemplate: `<b>${translationManager.t('current_portfolio_legend')}</b><br>` +
                                'Amount: ' + currencySymbol + '%{y:,.2f}<br>' +
                                '<extra></extra>'
             },
@@ -1649,13 +2125,13 @@ class EquateApp {
             {
                 x: ['Total Investment', 'Total Value', 'Return on Your Investment', 'Return on Total Investment'],
                 y: [0, calc.totalSold, 0, 0],
-                name: 'Total Sold',
+                name: translationManager.t('total_sold_legend'),
                 type: 'bar',
                 marker: { color: '#95a5a6' },
                 text: ['', calc.totalSold > 2000 ? currencySymbol + calc.totalSold.toLocaleString('en-US', { maximumFractionDigits: 0 }) : '', '', ''],
                 textposition: 'inside',
                 textfont: { color: 'white', size: 12 },
-                hovertemplate: '<b>Total Sold</b><br>' +
+                hovertemplate: `<b>${translationManager.t('total_sold_legend')}</b><br>` +
                                'Amount: ' + currencySymbol + '%{y:,.2f}<br>' +
                                '<extra></extra>'
             },
@@ -1663,13 +2139,13 @@ class EquateApp {
             {
                 x: ['Total Investment', 'Total Value', 'Return on Your Investment', 'Return on Total Investment'],
                 y: [0, 0, calc.totalReturn, 0],
-                name: 'Return on Your Investment',
+                name: translationManager.t('return_on_your_investment_legend'),
                 type: 'bar',
                 marker: { color: '#e74c3c' },
                 text: ['', '', currencySymbol + calc.totalReturn.toLocaleString('en-US', { maximumFractionDigits: 0 }) + ' (' + calc.returnPercentage.toFixed(1) + '%)', ''],
                 textposition: 'inside',
                 textfont: { color: 'white', size: 12 },
-                hovertemplate: '<b>Return on Your Investment</b><br>' +
+                hovertemplate: `<b>${translationManager.t('return_on_your_investment_legend')}</b><br>` +
                                'Amount: ' + currencySymbol + '%{y:,.2f} (' + calc.returnPercentage.toFixed(2) + '%)<br>' +
                                'Total Value - Your Investment<br>' +
                                '<extra></extra>'
@@ -1678,7 +2154,7 @@ class EquateApp {
             {
                 x: ['Total Investment', 'Total Value', 'Return on Your Investment', 'Return on Total Investment'],
                 y: [0, 0, 0, calc.returnOnTotalInvestment],
-                name: 'Return on Total Investment',
+                name: translationManager.t('return_on_total_investment_legend'),
                 type: 'bar',
                 marker: { color: '#e67e22' },
                 text: ['', '', '', currencySymbol + calc.returnOnTotalInvestment.toLocaleString('en-US', { maximumFractionDigits: 0 }) + ' (' + calc.returnPercentageOnTotalInvestment.toFixed(1) + '%)'],
@@ -1692,6 +2168,7 @@ class EquateApp {
         ];
 
         const barLayout = {
+            separators: this.numberFormat === 'eu' ? ',.' : '.,',
             barmode: 'stack',
             font: { color: fontColor, size: 12 },
             paper_bgcolor: bgColor,
@@ -1702,7 +2179,7 @@ class EquateApp {
                 gridcolor: 'rgba(128, 128, 128, 0.2)'
             },
             yaxis: {
-                title: { text: `Value (${currencySymbol})`, font: { color: fontColor, size: 12 } },
+                title: { text: `${translationManager.t('chart_value_axis_label')} (${currencySymbol})`, font: { color: fontColor, size: 12 } },
                 tickfont: { color: fontColor, size: 11 },
                 tickformat: ',.0f',
                 gridcolor: 'rgba(128, 128, 128, 0.2)'
@@ -1754,35 +2231,35 @@ class EquateApp {
 
         switch (point.x) {
             case 'Total Investment':
-                if (point.data.name === 'Your Investment') {
-                    summaryText = `💰 <strong>Your Investment:</strong> ${currencySymbol}${calc.userInvestment.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} - Money you personally invested in shares`;
-                } else if (point.data.name === 'Company Match') {
-                    summaryText = `🤝 <strong>Company Match:</strong> ${currencySymbol}${calc.companyMatch.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} - Company matching contributions for Employee Share Purchase Plan`;
-                } else if (point.data.name === 'Free Shares') {
-                    summaryText = `🎁 <strong>Free Shares:</strong> ${currencySymbol}${calc.freeShares.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} - Award shares given by company for free`;
-                } else if (point.data.name === 'Dividend Income') {
-                    summaryText = `💎 <strong>Dividend Income:</strong> ${currencySymbol}${calc.dividendIncome.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} - Dividends automatically reinvested into more shares`;
+                if (point.data.name === translationManager.t('your_investment_legend')) {
+                    summaryText = `💰 <strong>${translationManager.t('your_investment_legend')}:</strong> ${currencySymbol}${calc.userInvestment.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} - Money you personally invested in shares`;
+                } else if (point.data.name === translationManager.t('company_match_legend')) {
+                    summaryText = `🤝 <strong>${translationManager.t('company_match_legend')}:</strong> ${currencySymbol}${calc.companyMatch.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} - Company matching contributions for Employee Share Purchase Plan`;
+                } else if (point.data.name === translationManager.t('free_shares_legend')) {
+                    summaryText = `🎁 <strong>${translationManager.t('free_shares_legend')}:</strong> ${currencySymbol}${calc.freeShares.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} - Award shares given by company for free`;
+                } else if (point.data.name === translationManager.t('dividend_income_legend')) {
+                    summaryText = `💎 <strong>${translationManager.t('dividend_income_legend')}:</strong> ${currencySymbol}${calc.dividendIncome.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} - Dividends automatically reinvested into more shares`;
                 }
                 break;
             case 'Total Value':
-                if (point.data.name === 'Current Portfolio') {
-                    summaryText = `📊 <strong>Current Portfolio:</strong> ${currencySymbol}${calc.currentValue.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} - Value of shares you still own`;
-                } else if (point.data.name === 'Total Sold') {
-                    summaryText = `💸 <strong>Total Sold:</strong> ${currencySymbol}${calc.totalSold.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} - Money received from shares you already sold`;
+                if (point.data.name === translationManager.t('current_portfolio_legend')) {
+                    summaryText = `📊 <strong>${translationManager.t('current_portfolio_legend')}:</strong> ${currencySymbol}${calc.currentValue.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} - Value of shares you still own`;
+                } else if (point.data.name === translationManager.t('total_sold_legend')) {
+                    summaryText = `💸 <strong>${translationManager.t('total_sold_legend')}:</strong> ${currencySymbol}${calc.totalSold.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} - Money received from shares you already sold`;
                 }
                 break;
             case 'Return on Your Investment':
-                if (point.data.name === 'Your Investment') {
-                    summaryText = `💰 <strong>Your Investment Base:</strong> ${currencySymbol}${calc.userInvestment.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} - Your original investment (the base)`;
-                } else if (point.data.name === 'Return on Your Investment') {
-                    summaryText = `🎯 <strong>Return on Your Investment:</strong> ${currencySymbol}${calc.totalReturn.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} (${calc.returnPercentage.toFixed(2)}%) = Total Value (${currencySymbol}${calc.totalValue.toFixed(2)}) - Your Investment (${currencySymbol}${calc.userInvestment.toFixed(2)})`;
+                if (point.data.name === translationManager.t('your_investment_legend')) {
+                    summaryText = `💰 <strong>${translationManager.t('your_investment_legend')} Base:</strong> ${currencySymbol}${calc.userInvestment.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} - Your original investment (the base)`;
+                } else if (point.data.name === translationManager.t('return_on_your_investment_legend')) {
+                    summaryText = `🎯 <strong>${translationManager.t('return_on_your_investment_legend')}:</strong> ${currencySymbol}${calc.totalReturn.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} (${calc.returnPercentage.toFixed(2)}%) = Total Value (${currencySymbol}${calc.totalValue.toFixed(2)}) - Your Investment (${currencySymbol}${calc.userInvestment.toFixed(2)})`;
                 }
                 break;
             case 'Return on Total Investment':
-                if (point.data.name === 'Total Investment Base') {
-                    summaryText = `🏦 <strong>Total Investment Base:</strong> ${currencySymbol}${calc.totalInvestment.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} - Your Investment + All Company Benefits (the base)`;
-                } else if (point.data.name === 'Return on Total Investment') {
-                    summaryText = `📈 <strong>Return on Total Investment:</strong> ${currencySymbol}${calc.returnOnTotalInvestment.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} (${calc.returnPercentageOnTotalInvestment.toFixed(2)}%) = Total Value (${currencySymbol}${calc.totalValue.toFixed(2)}) - Total Investment (${currencySymbol}${calc.totalInvestment.toFixed(2)})`;
+                if (point.data.name === translationManager.t('total_investment_base_legend')) {
+                    summaryText = `🏦 <strong>${translationManager.t('total_investment_base_legend')}:</strong> ${currencySymbol}${calc.totalInvestment.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} - Your Investment + All Company Benefits (the base)`;
+                } else if (point.data.name === translationManager.t('return_on_total_investment_legend')) {
+                    summaryText = `📈 <strong>${translationManager.t('return_on_total_investment_legend')}:</strong> ${currencySymbol}${calc.returnOnTotalInvestment.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} (${calc.returnPercentageOnTotalInvestment.toFixed(2)}%) = Total Value (${currencySymbol}${calc.totalValue.toFixed(2)}) - Total Investment (${currencySymbol}${calc.totalInvestment.toFixed(2)})`;
                 }
                 break;
             default:
@@ -1803,17 +2280,17 @@ class EquateApp {
         summaryElement.style.display = 'block';
 
         switch (point.label) {
-            case 'Your Investment':
-                summaryText = `💰 <strong>Your Investment:</strong> ${currencySymbol}${calc.userInvestment.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} (${(calc.userInvestment / calc.totalInvestment * 100).toFixed(1)}%) - Money you personally invested in shares`;
+            case translationManager.t('your_investment_legend'):
+                summaryText = `💰 <strong>${translationManager.t('your_investment_legend')}:</strong> ${currencySymbol}${calc.userInvestment.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} (${(calc.userInvestment / calc.totalInvestment * 100).toFixed(1)}%) - Money you personally invested in shares`;
                 break;
-            case 'Company Match':
-                summaryText = `🤝 <strong>Company Match:</strong> ${currencySymbol}${calc.companyMatch.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} (${(calc.companyMatch / calc.totalInvestment * 100).toFixed(1)}%) - Company matching contributions for Employee Share Purchase Plan`;
+            case translationManager.t('company_match_legend'):
+                summaryText = `🤝 <strong>${translationManager.t('company_match_legend')}:</strong> ${currencySymbol}${calc.companyMatch.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} (${(calc.companyMatch / calc.totalInvestment * 100).toFixed(1)}%) - Company matching contributions for Employee Share Purchase Plan`;
                 break;
-            case 'Free Shares':
-                summaryText = `🎁 <strong>Free Shares:</strong> ${currencySymbol}${calc.freeShares.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} (${(calc.freeShares / calc.totalInvestment * 100).toFixed(1)}%) - Award shares given by company for free`;
+            case translationManager.t('free_shares_legend'):
+                summaryText = `🎁 <strong>${translationManager.t('free_shares_legend')}:</strong> ${currencySymbol}${calc.freeShares.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} (${(calc.freeShares / calc.totalInvestment * 100).toFixed(1)}%) - Award shares given by company for free`;
                 break;
-            case 'Dividend Income':
-                summaryText = `💎 <strong>Dividend Income:</strong> ${currencySymbol}${calc.dividendIncome.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} (${(calc.dividendIncome / calc.totalInvestment * 100).toFixed(1)}%) - Dividends automatically reinvested into more shares`;
+            case translationManager.t('dividend_income_legend'):
+                summaryText = `💎 <strong>${translationManager.t('dividend_income_legend')}:</strong> ${currencySymbol}${calc.dividendIncome.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} (${(calc.dividendIncome / calc.totalInvestment * 100).toFixed(1)}%) - Dividends automatically reinvested into more shares`;
                 break;
             default:
                 summaryText = '💡 <strong>Key Insight:</strong> Click on any chart element to see detailed calculations';
@@ -1968,20 +2445,32 @@ class EquateApp {
         const portfolioZone = document.getElementById('portfolioZone');
         const portfolioInfo = document.getElementById('portfolioInfo');
         
-        if (portfolioZone && portfolioInfo && dbInfo.hasPortfolioData) {
-            portfolioZone.classList.add('file-selected');
-            portfolioInfo.textContent = 'Cached Portfolio Data available';
-            portfolioInfo.classList.add('show');
+        if (portfolioZone && portfolioInfo) {
+            if (dbInfo.hasPortfolioData) {
+                portfolioZone.classList.add('file-selected');
+                portfolioInfo.textContent = 'Cached Portfolio Data available';
+                portfolioInfo.classList.add('show');
+            } else {
+                portfolioZone.classList.remove('file-selected');
+                portfolioInfo.textContent = '';
+                portfolioInfo.classList.remove('show');
+            }
         }
         
-        // Transaction drop zone
+        // Transaction drop zone - handle both cached and non-cached states
         const transactionsZone = document.getElementById('transactionsZone');
         const transactionsInfo = document.getElementById('transactionsInfo');
         
-        if (transactionsZone && transactionsInfo && dbInfo.hasTransactions) {
-            transactionsZone.classList.add('file-selected');
-            transactionsInfo.textContent = 'Cached Transaction Data available';
-            transactionsInfo.classList.add('show');
+        if (transactionsZone && transactionsInfo) {
+            if (dbInfo.hasTransactions) {
+                transactionsZone.classList.add('file-selected');
+                transactionsInfo.textContent = 'Cached Transaction Data available';
+                transactionsInfo.classList.add('show');
+            } else {
+                transactionsZone.classList.remove('file-selected');
+                transactionsInfo.textContent = '';
+                transactionsInfo.classList.remove('show');
+            }
         }
     }
 
@@ -2103,12 +2592,25 @@ function switchTheme(theme) {
     app.switchTheme(theme);
 }
 
+function setNumberFormat(format) {
+    try {
+        console.log('setNumberFormat called with:', format);
+        if (app) {
+            app.setNumberFormat(format);
+        } else {
+            console.error('App not initialized yet');
+        }
+    } catch (error) {
+        console.error('Error in setNumberFormat:', error);
+    }
+}
+
 function loadCachedData() {
     app.loadCachedData();
 }
 
 function generateAnalysis() {
-    app.generateAnalysis();
+    return app.generateAnalysis();
 }
 
 function applyManualPrice() {
@@ -2149,6 +2651,7 @@ function exportPDF() {
         portfolioExporter.exportPDF(); // Use actual PDF export with chart capture
     }
 }
+
 
 function clearCachedData() {
     if (confirm('Are you sure you want to clear all cached portfolio data? You will need to re-upload your files.')) {

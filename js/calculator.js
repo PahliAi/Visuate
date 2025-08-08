@@ -15,6 +15,7 @@ class PortfolioCalculator {
         this.currentPrice = null;
         this.priceSource = 'historical'; // 'historical' or 'manual'
         this.calculations = null;
+        this.currency = null; // Set externally by FileAnalyzer
     }
 
     /**
@@ -48,9 +49,10 @@ class PortfolioCalculator {
      * @param {Object|null} [transactionData=null] - Optional transaction data for realized gains
      * @returns {void}
      */
-    setPortfolioData(portfolioData, transactionData = null) {
+    setPortfolioData(portfolioData, transactionData = null, currency = null) {
         this.portfolioData = portfolioData;
         this.transactionData = transactionData;
+        this.currency = currency;
         
         config.debug('🔧 Calculator received data:', {
             portfolioEntries: portfolioData?.entries?.length || 0,
@@ -118,7 +120,7 @@ class PortfolioCalculator {
                 const existingEntry = this.historicalPrices.find(p => p.date === asOfDate);
                 
                 if (!existingEntry) {
-                    config.debug(`📈 Portfolio AsOfDate ${asOfDate} (€${marketPrice}) not found in historical prices, adding...`);
+                    config.debug(`📈 Portfolio AsOfDate ${asOfDate} (${marketPrice}) not found in historical prices, adding...`);
                     
                     // Add to in-memory array
                     this.historicalPrices.push({
@@ -242,66 +244,6 @@ class PortfolioCalculator {
     }
 
     /**
-     * Extract currency from portfolio data
-     */
-    extractCurrency() {
-        if (!this.portfolioData || !this.portfolioData.entries || this.portfolioData.entries.length === 0) {
-            return 'EUR'; // Default fallback
-        }
-        
-        // Look for currency indicators in various fields
-        const entry = this.portfolioData.entries[0];
-        
-        // Check if any numeric field has currency symbols
-        const fields = [entry.marketPrice, entry.investmentValue, entry.currentValue];
-        for (const field of fields) {
-            if (typeof field === 'string') {
-                if (field.includes('€') || field.includes('EUR')) return 'EUR';
-                if (field.includes('$') || field.includes('USD')) return 'USD';
-                if (field.includes('£') || field.includes('GBP')) return 'GBP';
-            }
-        }
-        
-        // If portfolio data has currency field
-        if (this.portfolioData.currency) {
-            return this.portfolioData.currency;
-        }
-        
-        // Default to EUR for EquatePlus
-        return 'EUR';
-    }
-
-    /**
-     * Extract currency from transaction data
-     */
-    extractTransactionCurrency() {
-        if (!this.transactionData || !this.transactionData.entries || this.transactionData.entries.length === 0) {
-            return null;
-        }
-        
-        // Look for currency indicators in transaction fields
-        const entry = this.transactionData.entries[0];
-        
-        // Check if any numeric field has currency symbols
-        const fields = [entry.executionPrice, entry.grossProceeds, entry.netProceeds, entry.fees];
-        for (const field of fields) {
-            if (typeof field === 'string') {
-                if (field.includes('€') || field.includes('EUR')) return 'EUR';
-                if (field.includes('$') || field.includes('USD')) return 'USD';
-                if (field.includes('£') || field.includes('GBP')) return 'GBP';
-            }
-        }
-        
-        // If transaction data has currency field
-        if (this.transactionData.currency) {
-            return this.transactionData.currency;
-        }
-        
-        // Default to EUR for EquatePlus
-        return 'EUR';
-    }
-
-    /**
      * Get latest historical price date
      */
     getLatestHistoricalDate() {
@@ -351,18 +293,11 @@ class PortfolioCalculator {
 
         const entries = this.portfolioData.entries;
         
-        // Auto-detect currency from portfolio data
-        const portfolioCurrency = this.extractCurrency();
+        // Use externally provided currency (from FileAnalyzer)
+        const portfolioCurrency = this.currency || 'UNKNOWN';
         
-        // Check for currency mismatch if transaction data exists
+        // Currency validation is now handled by FileAnalyzer during pre-parsing
         let currencyWarning = null;
-        if (this.transactionData && this.transactionData.entries && this.transactionData.entries.length > 0) {
-            const transactionCurrency = this.extractTransactionCurrency();
-            if (transactionCurrency && transactionCurrency !== portfolioCurrency) {
-                currencyWarning = `Currency mismatch detected: Portfolio (${portfolioCurrency}) vs Transactions (${transactionCurrency}). Continuing with Portfolio currency.`;
-                config.warn('⚠️ Currency mismatch:', currencyWarning);
-            }
-        }
         
         // Calculate core metrics
         const userInvestment = this.calculateUserInvestment(entries);
@@ -490,6 +425,16 @@ class PortfolioCalculator {
     }
 
     /**
+     * Check if an order type represents a sale or transfer (shares leaving the account)
+     */
+    isSellOrTransferOrderType(orderType) {
+        return orderType === 'Sell' || 
+               orderType === 'Sell with price limit' ||
+               orderType === 'Sell at market price' ||
+               orderType === 'Transfer';
+    }
+
+    /**
      * Calculate total sold amount from completed transactions
      */
     calculateTotalSold() {
@@ -498,12 +443,7 @@ class PortfolioCalculator {
         }
 
         return this.transactionData.entries
-            .filter(entry => 
-                entry.orderType === 'Sell' || 
-                entry.orderType === 'Sell with price limit' ||
-                entry.orderType === 'Sell at market price' ||
-                entry.orderType === 'Transfer'
-            )
+            .filter(entry => this.isSellOrTransferOrderType(entry.orderType))
             .filter(entry => entry.status === 'Executed')
             .reduce((sum, entry) => sum + (entry.netProceeds || 0), 0);
     }
@@ -514,16 +454,20 @@ class PortfolioCalculator {
      */
     calculateCurrentValue(entries) {
         if (this.priceSource === 'manual' && this.currentPrice) {
-            // Recalculate using manual price: outstanding shares * manual price
+            // Calculate using manual price: outstanding shares * manual price
             config.debug('💰 Calculating current value with manual price:', this.currentPrice);
             const totalValue = entries
                 .reduce((sum, entry) => sum + (entry.outstandingQuantity * this.currentPrice), 0);
             config.debug('💰 Manual price calculation result:', totalValue);
             return totalValue;
         } else {
-            // Use pre-calculated values from Excel
-            return entries
-                .reduce((sum, entry) => sum + (entry.currentOutstandingValue || 0), 0);
+            // Calculate using market price from Excel: outstanding shares * market price
+            // This ensures we always use transaction currency, not display currency
+            config.debug('💰 Calculating current value with market price from transaction currency');
+            const totalValue = entries
+                .reduce((sum, entry) => sum + (entry.outstandingQuantity * entry.marketPrice), 0);
+            config.debug('💰 Market price calculation result:', totalValue);
+            return totalValue;
         }
     }
 
@@ -699,14 +643,14 @@ class PortfolioCalculator {
             const dateStr = currentDate.toISOString().split('T')[0];
             
             // DEBUG: Loop progress tracking
-            if (dateStr >= '2025-07-29') {
-                config.debug('🔍 DEBUG loop near end:', {
-                    currentDateStr: dateStr,
-                    currentDateTime: currentDate.toISOString(),
-                    latestPriceDateTime: latestPriceDate.toISOString(),
-                    comparison: currentDate <= latestPriceDate
-                });
-            }
+            // if (dateStr >= '2025-07-29') {
+            //     config.debug('🔍 DEBUG loop near end:', {
+            //         currentDateStr: dateStr,
+            //         currentDateTime: currentDate.toISOString(),
+            //         latestPriceDateTime: latestPriceDate.toISOString(),
+            //         comparison: currentDate <= latestPriceDate
+            //     });
+            // }
             
             const prevOutstandingShares = outstandingShares;
             
@@ -734,10 +678,7 @@ class PortfolioCalculator {
             // Process sales only (dividends are already in portfolio data as reinvestments)
             if (transactionsByDate[dateStr]) {
                 transactionsByDate[dateStr].forEach(transaction => {
-                    if (transaction.orderType === 'Sell' || 
-                        transaction.orderType === 'Sell with price limit' ||
-                        transaction.orderType === 'Sell at market price' ||
-                        transaction.orderType === 'Transfer') {
+                    if (this.isSellOrTransferOrderType(transaction.orderType)) {
                         // Sale removes shares from outstanding count
                         const quantitySold = Math.abs(transaction.quantity);
                         shareChange -= quantitySold;
@@ -746,7 +687,8 @@ class PortfolioCalculator {
                         const saleAmount = transaction.netProceeds || (quantitySold * (transaction.executionPrice || 0));
                         saleProceedsChange += saleAmount;
                         
-                        reason += `Sold ${quantitySold} shares for €${saleAmount.toFixed(2)}; `;
+                        const currencySymbol = this.getCurrencySymbol(this.currency);
+                        reason += `Sold ${quantitySold} shares for ${currencySymbol}${saleAmount.toFixed(2)}; `;
                     }
                     // Note: Dividends are ignored here as they're already included in portfolio data as reinvestments
                 });
@@ -873,17 +815,47 @@ class PortfolioCalculator {
     }
 
     /**
-     * Format currency value
+     * Get currency symbol for a given currency code
      */
-    formatCurrency(value, currency = 'EUR', decimals = 2) {
+    getCurrencySymbol(currency) {
         const symbols = {
             'EUR': '€',
             'USD': '$',
-            'GBP': '£'
+            'GBP': '£',
+            'CNY': '¥',
+            'JPY': '¥',
+            'CAD': 'C$',
+            'AUD': 'A$',
+            'CHF': 'CHF',
+            'SEK': 'kr',
+            'NOK': 'kr',
+            'DKK': 'kr',
+            'PLN': 'zł',
+            'CZK': 'Kč',
+            'HUF': 'Ft',
+            'RON': 'lei',
+            'BGN': 'лв',
+            'HRK': 'kn',
+            'RUB': '₽',
+            'TRY': '₺',
+            'INR': '₹',
+            'KRW': '₩',
+            'SGD': 'S$',
+            'HKD': 'HK$',
+            'NZD': 'NZ$',
+            'ZAR': 'R',
+            'BRL': 'R$',
+            'MXN': '$'
         };
+        return symbols[currency] || currency || '';
+    }
 
-        const symbol = symbols[currency] || '€';
-        return `${symbol}${value.toLocaleString('en-US', { 
+    /**
+     * Format currency value
+     */
+    formatCurrency(value, currency = null, decimals = 2) {
+        const symbol = this.getCurrencySymbol(currency);
+        return `${symbol} ${value.toLocaleString('en-US', { 
             minimumFractionDigits: decimals, 
             maximumFractionDigits: decimals 
         })}`;
@@ -920,7 +892,7 @@ class PortfolioCalculator {
                 hasTransactions: !!this.transactionData
             },
             settings: {
-                currency: 'EUR',
+                currency: this.currency || null,  // Use detected currency, never default to EUR
                 decimals: 2
             }
         };

@@ -85,36 +85,67 @@ body {
     color: var(--text-muted);
 }
 
-.theme-selector {
-    position: absolute;
-    top: 8px;
-    right: 15px;
-    display: flex;
+
+
+
+
+/* Banner Grid Layout */
+.banner-grid {
+    display: grid;
+    grid-template-columns: auto auto 1fr auto auto auto auto;
+    grid-template-rows: auto auto 20px;
+    gap: 8px 12px;
     align-items: center;
-    gap: 8px;
+    justify-items: start;
+    grid-template-areas: 
+        "theme-label theme-dropdown logo language-label language-dropdown . ."
+        ". . logo format-label format-dropdown . ."
+        ". . . . . . .";
 }
 
-.logo-image {
-    margin: 5px 0;
-}
+.grid-item.theme-label { grid-area: theme-label; }
+.grid-item.theme-dropdown { grid-area: theme-dropdown; }
+.grid-item.logo-center { grid-area: logo; justify-self: center; }
+.grid-item.language-label { grid-area: language-label; }
+.grid-item.language-dropdown { grid-area: language-dropdown; }
+.grid-item.format-label { grid-area: format-label; }
+.grid-item.format-dropdown { grid-area: format-dropdown; }
 
-.logo-image img {
-    max-width: 60%;
-    height: auto;
-}
-
-.theme-selector label {
+.grid-item label {
     color: var(--text-muted);
     font-size: 14px;
+    white-space: nowrap;
+    min-width: 60px;
+    text-align: left;
 }
 
-.theme-selector select {
-    padding: 8px 12px;
-    border: 2px solid var(--border-color);
-    border-radius: 6px;
+
+
+/* Grid item styling */
+.grid-item select {
+    padding: 6px 10px;
+    border: 1px solid var(--border-color);
+    border-radius: 4px;
     background: var(--bg-secondary);
     color: var(--text-primary);
     font-size: 14px;
+    min-width: 100px;
+    transition: border-color 0.3s ease;
+}
+
+.grid-item select:hover {
+    border-color: var(--accent-color);
+}
+
+.grid-item select:focus {
+    outline: none;
+    border-color: var(--accent-color);
+    box-shadow: 0 0 0 2px var(--accent-light);
+}
+
+.grid-item.logo-center img {
+    max-height: 80px;
+    width: auto;
 }
 
 /* Main Content */
@@ -1188,4 +1219,66 @@ body {
         align-self: center;
         margin-bottom: 15px;
     }
+}
+
+/* Timeline Disclaimer Styling */
+.timeline-disclaimer {
+    margin-top: 10px;
+    margin-bottom: 15px;
+    padding: 8px 20px;
+    background: var(--warning-bg, #fff3cd);
+    border: 2px solid var(--warning-border, #ffc107);
+    border-radius: 8px;
+    font-size: 15px;
+    color: var(--warning-text, #856404);
+    width: 100%;
+    box-sizing: border-box;
+    box-shadow: 0 2px 8px rgba(255, 193, 7, 0.2);
+}
+
+.disclaimer-content {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 4px;
+    line-height: 1.4;
+}
+
+.disclaimer-amount {
+    font-weight: bold;
+    color: var(--accent-color);
+}
+
+/* Dark theme support for disclaimer */
+[data-theme="dark"] .timeline-disclaimer {
+    background: rgba(255, 193, 7, 0.15);
+    border-color: rgba(255, 193, 7, 0.3);
+    color: #ffc107;
+}
+
+/* Mobile responsive disclaimer */
+@media (max-width: 768px) {
+    .disclaimer-content {
+        font-size: 13px;
+    }
+}
+
+/* Metric Card Disclaimer - Same warning banner styling as timeline */
+.metric-disclaimer {
+    font-size: 12px;
+    color: var(--warning-text, #856404);
+    background: var(--warning-bg, #fff3cd);
+    border: 1px solid var(--warning-border, #ffc107);
+    border-radius: 4px;
+    padding: 2px 8px;
+    margin-top: 6px;
+    line-height: 1.2;
+    text-align: center;
+}
+
+/* Dark theme support - same as timeline disclaimer */
+[data-theme="dark"] .metric-disclaimer {
+    background: rgba(255, 193, 7, 0.15);
+    border-color: rgba(255, 193, 7, 0.3);
+    color: #ffc107;
 }

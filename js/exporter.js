@@ -18,6 +18,27 @@ class PortfolioExporter {
     }
 
     /**
+     * Get currency symbol safely - no fallbacks to prevent wrong currency display
+     */
+    getCurrencySymbol(currency) {
+        if (!currency) return '';
+        
+        if (typeof CurrencyMappings !== 'undefined') {
+            const mappings = new CurrencyMappings();
+            const currencyInfo = mappings.getByCode(currency);
+            if (currencyInfo && currencyInfo.symbol) {
+                return currencyInfo.symbol;
+            } else {
+                // console.warn(`⚠️ Unknown currency in exporter: ${currency} - using currency code as display`);
+                return currency; // Use the currency code itself
+            }
+        } else {
+            console.warn('⚠️ CurrencyMappings not available in exporter');
+            return '';
+        }
+    }
+
+    /**
      * Export portfolio analysis as CSV
      */
     exportCSV() {
@@ -159,13 +180,14 @@ class PortfolioExporter {
         lines.push('');
 
         // Summary metrics
+        const currencySymbol = this.getCurrencySymbol(this.calculations.currency);
         lines.push('PORTFOLIO SUMMARY');
         lines.push('Metric,Value');
-        lines.push(`Your Investment,"€${this.calculations.userInvestment.toFixed(2)}"`);
-        lines.push(`Company Match,"€${this.calculations.companyInvestment.toFixed(2)}"`);
-        lines.push(`Dividend Income,"€${this.calculations.dividendIncome.toFixed(2)}"`);
-        lines.push(`Current Value,"€${this.calculations.currentValue.toFixed(2)}"`);
-        lines.push(`Total Return,"€${this.calculations.totalReturn.toFixed(2)}"`);
+        lines.push(`Your Investment,"${currencySymbol} ${this.calculations.userInvestment.toFixed(2)}"`);
+        lines.push(`Company Match,"${currencySymbol} ${this.calculations.companyInvestment.toFixed(2)}"`);
+        lines.push(`Dividend Income,"${currencySymbol} ${this.calculations.dividendIncome.toFixed(2)}"`);
+        lines.push(`Current Value,"${currencySymbol} ${this.calculations.currentValue.toFixed(2)}"`);
+        lines.push(`Total Return,"${currencySymbol} ${this.calculations.totalReturn.toFixed(2)}"`);
         lines.push(`Return Percentage,"${this.calculations.returnPercentage.toFixed(2)}%"`);
         lines.push(`Annual Growth (CAGR),"${this.calculations.annualGrowth.toFixed(2)}%"`);
         lines.push(`Available Shares,${this.calculations.availableShares}`);
@@ -174,7 +196,7 @@ class PortfolioExporter {
 
         // Price information
         lines.push('PRICE INFORMATION');
-        lines.push(`Current Price,"€${this.calculations.currentPrice.toFixed(2)}"`);
+        lines.push(`Current Price,"${currencySymbol} ${this.calculations.currentPrice.toFixed(2)}"`);
         lines.push(`Price Source,${this.calculations.priceSource}`);
         lines.push(`Price Date,${this.calculations.priceDate}`);
         lines.push('');
@@ -203,7 +225,7 @@ class PortfolioExporter {
                 entry.costBasis.toFixed(2),
                 entry.outstandingQuantity,
                 entry.availableQuantity,
-                entry.purchaseAmount.toFixed(2)
+                (entry.outstandingQuantity * entry.costBasis).toFixed(2)
             ].join(','));
         });
 
@@ -250,7 +272,7 @@ class PortfolioExporter {
     <div class="section">
         <h2>Price Information</h2>
         <div class="price-info">
-            <p><strong>Current Price:</strong> €${this.calculations.currentPrice.toFixed(2)}</p>
+            <p><strong>Current Price:</strong> ${this.getCurrencySymbol(this.calculations.currency)} ${this.calculations.currentPrice.toFixed(2)}</p>
             <p><strong>Price Source:</strong> ${this.calculations.priceSource}</p>
             <p><strong>Price Date:</strong> ${this.calculations.priceDate}</p>
         </div>
@@ -262,38 +284,38 @@ class PortfolioExporter {
             <!-- First Row: Investment Details -->
             <div class="metric-card highlight">
                 <div class="metric-label">Your Investment</div>
-                <div class="metric-value">€${this.calculations.userInvestment.toFixed(2)}</div>
+                <div class="metric-value">${this.getCurrencySymbol(this.calculations.currency)} ${this.calculations.userInvestment.toFixed(2)}</div>
             </div>
             <div class="metric-card">
                 <div class="metric-label">Company Match</div>
-                <div class="metric-value">€${this.calculations.companyInvestment.toFixed(2)}</div>
+                <div class="metric-value">${this.getCurrencySymbol(this.calculations.currency)} ${this.calculations.companyInvestment.toFixed(2)}</div>
             </div>
             <div class="metric-card">
                 <div class="metric-label">Dividend Income</div>
-                <div class="metric-value">€${this.calculations.dividendIncome.toFixed(2)}</div>
+                <div class="metric-value">${this.getCurrencySymbol(this.calculations.currency)} ${this.calculations.dividendIncome.toFixed(2)}</div>
             </div>
             <div class="metric-card">
                 <div class="metric-label">Total Investment</div>
-                <div class="metric-value">€${this.calculations.totalInvestment.toFixed(2)}</div>
+                <div class="metric-value">${this.getCurrencySymbol(this.calculations.currency)} ${this.calculations.totalInvestment.toFixed(2)}</div>
             </div>
             
             <!-- Second Row: Portfolio Performance -->
             <div class="metric-card">
                 <div class="metric-label">Current Portfolio</div>
-                <div class="metric-value">€${this.calculations.currentValue.toFixed(2)}</div>
+                <div class="metric-value">${this.getCurrencySymbol(this.calculations.currency)} ${this.calculations.currentValue.toFixed(2)}</div>
             </div>
             <div class="metric-card">
                 <div class="metric-label">Total Sold</div>
-                <div class="metric-value">€${this.calculations.totalSold.toFixed(2)}</div>
+                <div class="metric-value">${this.getCurrencySymbol(this.calculations.currency)} ${this.calculations.totalSold.toFixed(2)}</div>
             </div>
             <div class="metric-card">
                 <div class="metric-label">Total Value</div>
-                <div class="metric-value">€${this.calculations.totalValue.toFixed(2)}</div>
+                <div class="metric-value">${this.getCurrencySymbol(this.calculations.currency)} ${this.calculations.totalValue.toFixed(2)}</div>
             </div>
             <div class="metric-card highlight">
                 <div class="metric-label">Total Return</div>
                 <div class="metric-value ${this.calculations.totalReturn >= 0 ? 'positive' : 'negative'}">
-                    €${this.calculations.totalReturn.toFixed(2)}
+                    ${this.getCurrencySymbol(this.calculations.currency)} ${this.calculations.totalReturn.toFixed(2)}
                 </div>
             </div>
             
@@ -379,10 +401,11 @@ class PortfolioExporter {
             html += `<td>${entry.allocationDate || '-'}</td>`;
             html += `<td>${entry.plan}</td>`;
             html += `<td>${entry.contributionType}</td>`;
-            html += `<td>€${entry.costBasis.toFixed(2)}</td>`;
+            const currencySymbol = this.getCurrencySymbol(this.calculations.currency);
+            html += `<td>${currencySymbol} ${entry.costBasis.toFixed(2)}</td>`;
             html += `<td>${entry.outstandingQuantity}</td>`;
             html += `<td>${entry.availableQuantity}</td>`;
-            html += `<td>€${entry.purchaseAmount.toFixed(2)}</td>`;
+            html += `<td>${currencySymbol} ${(entry.outstandingQuantity * entry.costBasis).toFixed(2)}</td>`;
             html += '</tr>';
         });
 
@@ -424,50 +447,50 @@ class PortfolioExporter {
             <!-- First Row: Investment Details -->
             <div class="metric-card highlight">
                 <div class="metric-label">Your Investment</div>
-                <div class="metric-value">€${this.calculations.userInvestment.toFixed(2)}</div>
+                <div class="metric-value">${this.getCurrencySymbol(this.calculations.currency)} ${this.calculations.userInvestment.toFixed(2)}</div>
             </div>
             <div class="metric-card">
                 <div class="metric-label">Company Match</div>
-                <div class="metric-value">€${(this.calculations.companyMatch || 0).toFixed(2)}</div>
+                <div class="metric-value">${this.getCurrencySymbol(this.calculations.currency)} ${(this.calculations.companyMatch || 0).toFixed(2)}</div>
             </div>
             <div class="metric-card">
                 <div class="metric-label">Free Shares</div>
-                <div class="metric-value">€${(this.calculations.freeShares || 0).toFixed(2)}</div>
+                <div class="metric-value">${this.getCurrencySymbol(this.calculations.currency)} ${(this.calculations.freeShares || 0).toFixed(2)}</div>
             </div>
             <div class="metric-card">
                 <div class="metric-label">Dividend Income</div>
-                <div class="metric-value">€${this.calculations.dividendIncome.toFixed(2)}</div>
+                <div class="metric-value">${this.getCurrencySymbol(this.calculations.currency)} ${this.calculations.dividendIncome.toFixed(2)}</div>
             </div>
             
             <!-- Second Row: Portfolio Performance -->
             <div class="metric-card highlight" style="background-color: #fff8e6; border-color: #f39c12;">
                 <div class="metric-label">Total Investment</div>
-                <div class="metric-value">€${this.calculations.totalInvestment.toFixed(2)}</div>
+                <div class="metric-value">${this.getCurrencySymbol(this.calculations.currency)} ${this.calculations.totalInvestment.toFixed(2)}</div>
             </div>
             <div class="metric-card">
                 <div class="metric-label">Current Portfolio</div>
-                <div class="metric-value">€${this.calculations.currentValue.toFixed(2)}</div>
+                <div class="metric-value">${this.getCurrencySymbol(this.calculations.currency)} ${this.calculations.currentValue.toFixed(2)}</div>
             </div>
             <div class="metric-card">
                 <div class="metric-label">Total Sold</div>
-                <div class="metric-value">€${this.calculations.totalSold.toFixed(2)}</div>
+                <div class="metric-value">${this.getCurrencySymbol(this.calculations.currency)} ${this.calculations.totalSold.toFixed(2)}</div>
             </div>
             <div class="metric-card">
                 <div class="metric-label">Total Value</div>
-                <div class="metric-value">€${this.calculations.totalValue.toFixed(2)}</div>
+                <div class="metric-value">${this.getCurrencySymbol(this.calculations.currency)} ${this.calculations.totalValue.toFixed(2)}</div>
             </div>
             
             <!-- Third Row: Returns -->
             <div class="metric-card highlight">
                 <div class="metric-label">Return on Your Investment</div>
                 <div class="metric-value ${this.calculations.totalReturn >= 0 ? 'positive' : 'negative'}">
-                    €${this.calculations.totalReturn.toFixed(2)}
+                    ${this.getCurrencySymbol(this.calculations.currency)} ${this.calculations.totalReturn.toFixed(2)}
                 </div>
             </div>
             <div class="metric-card highlight" style="background-color: #fff8e6; border-color: #f39c12;">
                 <div class="metric-label">Return on Total Investment</div>
                 <div class="metric-value ${(this.calculations.returnOnTotalInvestment || 0) >= 0 ? 'positive' : 'negative'}">
-                    €${(this.calculations.returnOnTotalInvestment || 0).toFixed(2)}
+                    ${this.getCurrencySymbol(this.calculations.currency)} ${(this.calculations.returnOnTotalInvestment || 0).toFixed(2)}
                 </div>
             </div>
             <div class="metric-card highlight">
@@ -623,7 +646,7 @@ class PortfolioExporter {
         </div>
         <div class="header-right">
             <p><strong>User ID:</strong> ${this.portfolioData.userId}</p>
-            <p><strong>Current Price:</strong> €${this.calculations.currentPrice.toFixed(2)}</p>
+            <p><strong>Current Price:</strong> ${this.getCurrencySymbol(this.calculations.currency)} ${this.calculations.currentPrice.toFixed(2)}</p>
             <p><strong>Generated:</strong> ${new Date().toLocaleString()}</p>
         </div>
     </div>

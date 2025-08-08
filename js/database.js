@@ -82,7 +82,7 @@ class EquateDB {
     /**
      * Save portfolio data to IndexedDB
      */
-    async savePortfolioData(portfolioData, transactionData = null, userId, isEnglish = true, company = 'Allianz') {
+    async savePortfolioData(portfolioData, transactionData = null, userId, isEnglish = true, company = 'Allianz', currency = null) {
         const transaction = this.db.transaction(['portfolioData'], 'readwrite');
         const store = transaction.objectStore('portfolioData');
 
@@ -94,7 +94,8 @@ class EquateDB {
             uploadDate: new Date().toISOString(),
             hasTransactions: transactionData !== null,
             isEnglish: isEnglish,
-            company: company
+            company: company,
+            currency: currency // Store the detected currency
         };
 
         return store.put(data);
@@ -377,6 +378,24 @@ class EquateDB {
         const transaction = this.db.transaction(['historicalPrices'], 'readwrite');
         const store = transaction.objectStore('historicalPrices');
         return store.clear();
+    }
+
+    /**
+     * Clear only transaction data from cached portfolio data
+     */
+    async clearTransactionData() {
+        const cachedData = await this.getPortfolioData();
+        if (cachedData && cachedData.portfolioData) {
+            // Keep portfolio data, clear transaction data
+            await this.savePortfolioData(
+                cachedData.portfolioData, 
+                null, // Clear transaction data
+                cachedData.userId,
+                cachedData.isEnglish,
+                cachedData.company
+            );
+            config.debug('✅ Cleared transaction data from cache, kept portfolio data');
+        }
     }
 
     /**

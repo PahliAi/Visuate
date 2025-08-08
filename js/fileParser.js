@@ -13,6 +13,17 @@ class FileParser {
         this.transactionData = null;
         this.historicalPrices = null;
         this.detectedDateFormat = null; // 'DD-MM-YYYY' or 'MM-DD-YYYY'
+        this.detectedLanguage = 'english'; // Default language
+        this.detectedCurrency = null; // Detected currency
+        this.columnMappings = this.initializeColumnMappings();
+        
+        // Initialize currency detector
+        if (typeof CurrencyDetector !== 'undefined') {
+            this.currencyDetector = new CurrencyDetector();
+        } else {
+            config.warn('⚠️ CurrencyDetector not available - currency detection will use fallback method');
+            this.currencyDetector = null;
+        }
     }
 
     /**
@@ -221,11 +232,20 @@ class FileParser {
     /**
      * Parse Portfolio Details Excel file from EquatePlus
      * @param {File} file - Excel file object containing portfolio data
+     * @param {Object} analysisResult - Pre-analysis result from FileAnalyzer (optional for backward compatibility)
      * @returns {Promise<Object>} Parsed portfolio data with validated entries
      * @throws {Error} If file format is invalid or data is malformed
      */
-    async parsePortfolioFile(file) {
+    async parsePortfolioFile(file, analysisResult = null) {
         try {
+            // Use pre-detected language or detect on the fly (backward compatibility)
+            if (analysisResult && analysisResult.unified) {
+                this.detectedLanguage = analysisResult.unified.language;
+                config.debug('🌐 Using pre-detected language for portfolio file:', this.detectedLanguage);
+            } else if (typeof translationManager !== 'undefined') {
+                this.detectedLanguage = await translationManager.detectLanguageFromFile(file);
+                config.debug('🌐 Detected language for portfolio file (fallback):', this.detectedLanguage);
+            }
             const data = await this.readExcelFile(file);
             const worksheet = data.Sheets[data.SheetNames[0]];
             const rawData = XLSX.utils.sheet_to_json(worksheet, { 
@@ -233,10 +253,11 @@ class FileParser {
                 raw: true         // Get raw values - numbers as numbers, dates as dates
             });
 
-            // Find the data start row (after headers)
+            // Find the data start row (after headers) - now language-aware
             let dataStartRow = -1;
+            const allocationDateHeader = this.getLocalizedHeader('allocation_date');
             for (let i = 0; i < rawData.length; i++) {
-                if (rawData[i][0] === 'Allocation date') {
+                if (rawData[i][0] === allocationDateHeader) {
                     dataStartRow = i + 1;
                     break;
                 }
@@ -255,6 +276,17 @@ class FileParser {
             // Extract "As of date" from cell B3
             const asOfDate = this.extractAsOfDate(rawData);
 
+            // Use pre-detected currency or fallback detection (for backward compatibility)
+            let detectedCurrency = null; // No default fallback
+            if (analysisResult && analysisResult.unified) {
+                detectedCurrency = analysisResult.unified.currency;
+                config.debug('💰 Using pre-detected currency for portfolio file:', detectedCurrency);
+            } else {
+                // Fallback: Use basic currency detection (simplified version)
+                detectedCurrency = this.fallbackCurrencyDetection(rawData);
+                config.debug('💰 Using fallback currency detection for portfolio file:', detectedCurrency);
+            }
+            
             // Parse portfolio entries
             const portfolioEntries = [];
             for (let i = dataStartRow; i < rawData.length; i++) {
@@ -293,7 +325,8 @@ class FileParser {
                 asOfDate: asOfDate,
                 entries: validEntries,
                 uploadDate: new Date().toISOString(),
-                fileName: file.name
+                fileName: file.name,
+                currency: detectedCurrency
             };
 
             config.debug('✅ Portfolio data validated and parsed:', this.portfolioData.entries.length, 'clean entries');
@@ -308,11 +341,24 @@ class FileParser {
     /**
      * Parse Completed Transactions Excel file from EquatePlus
      * @param {File} file - Excel file object containing transaction history
+     * @param {Object} analysisResult - Pre-analysis result from FileAnalyzer (optional for backward compatibility)
      * @returns {Promise<Object>} Parsed transaction data with validated entries
      * @throws {Error} If file format is invalid or user ID mismatch
      */
-    async parseTransactionFile(file) {
+    async parseTransactionFile(file, analysisResult = null) {
         try {
+            // Language compatibility check - now handled by FileAnalyzer, but keep fallback
+            if (analysisResult && analysisResult.warnings) {
+                const languageMismatch = analysisResult.warnings.find(w => w.type === 'LANGUAGE_MISMATCH');
+                if (languageMismatch) {
+                    config.warn('⚠️ Language mismatch detected by FileAnalyzer:', languageMismatch.message);
+                }
+            } else if (typeof translationManager !== 'undefined') {
+                const transactionLanguage = await translationManager.detectLanguageFromFile(file);
+                if (this.detectedLanguage !== transactionLanguage) {
+                    config.warn('⚠️ Language mismatch between files:', this.detectedLanguage, 'vs', transactionLanguage);
+                }
+            }
             const data = await this.readExcelFile(file);
             const worksheet = data.Sheets[data.SheetNames[0]];
             const rawData = XLSX.utils.sheet_to_json(worksheet, { 
@@ -320,10 +366,11 @@ class FileParser {
                 raw: true         // Get raw values - numbers as numbers, dates as dates
             });
 
-            // Find the data start row
+            // Find the data start row - now language-aware
             let dataStartRow = -1;
+            const orderReferenceHeader = this.getLocalizedHeader('order_reference');
             for (let i = 0; i < rawData.length; i++) {
-                if (rawData[i][0] === 'Order reference') {
+                if (rawData[i][0] === orderReferenceHeader) {
                     dataStartRow = i + 1;
                     break;
                 }
@@ -337,6 +384,17 @@ class FileParser {
             const userId = this.extractUserId(rawData);
             if (!userId) {
                 throw new Error('Could not find User ID in transaction file');
+            }
+            
+            // Use pre-detected currency or fallback detection (for backward compatibility)
+            let detectedCurrency = null; // No default fallback
+            if (analysisResult && analysisResult.unified) {
+                detectedCurrency = analysisResult.unified.currency;
+                config.debug('💰 Using pre-detected currency for transaction file:', detectedCurrency);
+            } else {
+                // Fallback: Use basic currency detection (simplified version)
+                detectedCurrency = this.fallbackCurrencyDetection(rawData);
+                config.debug('💰 Using fallback currency detection for transaction file:', detectedCurrency);
             }
 
             // Parse transaction entries
@@ -372,7 +430,8 @@ class FileParser {
                 userId: userId,
                 entries: validTransactions,
                 uploadDate: new Date().toISOString(),
-                fileName: file.name
+                fileName: file.name,
+                currency: detectedCurrency
             };
 
             config.debug('✅ Transaction data validated and parsed:', this.transactionData.entries.length, 'clean transactions');
@@ -464,12 +523,54 @@ class FileParser {
     }
 
     /**
-     * Extract User ID from raw Excel data
+     * Extract currency from raw Excel data by scanning for currency symbols
+     */
+    /**
+     * Simple fallback currency detection for backward compatibility
+     * This is a simplified version - main detection should use FileAnalyzer + CurrencyDetector
+     */
+    fallbackCurrencyDetection(rawData) {
+        // Look for common currency symbols in first 50 cells
+        for (let i = 0; i < Math.min(5, rawData.length); i++) {
+            const row = rawData[i];
+            if (!row) continue;
+            
+            for (let j = 0; j < Math.min(10, row.length); j++) {
+                const cellValue = row[j];
+                if (typeof cellValue === 'string') {
+                    const text = cellValue.toString().toLowerCase();
+                    if (text.includes('€') || text.includes('eur')) return 'EUR';
+                    if (text.includes('$') && text.includes('us')) return 'USD';
+                    if (text.includes('£') || text.includes('gbp')) return 'GBP';
+                    if (text.includes('¥') && text.includes('cn')) return 'CNY';
+                }
+            }
+        }
+        return null; // No fallback - let calling code handle gracefully
+    }
+
+    /**
+     * REMOVED: extractCurrencyFromRawData method (was lines 505-875)
+     * 
+     * This large method was removed to eliminate problematic language-based currency assumptions
+     * that caused Chinese Excel files with EUR data to incorrectly display Yuan (¥) symbols.
+     * 
+     * The method contained:
+     * - Complex currency pattern matching (30+ currencies)  
+     * - Problematic language overrides (Chinese → CNY at line 834-837)
+     * - Language-based fallback mapping (Chinese → CNY at line 867)
+     * 
+     * Replacement: Use FileAnalyzer + CurrencyDetector for clean separation of concerns
+     */
+
+    /**
+     * Extract User ID from raw Excel data - now language-aware
      */
     extractUserId(rawData) {
+        const userIdHeader = this.getLocalizedHeader('user_id');
         for (let i = 0; i < Math.min(10, rawData.length); i++) {
             const row = rawData[i];
-            if (row[0] === 'User ID' && row[1]) {
+            if (row[0] === userIdHeader && row[1]) {
                 return row[1].toString();
             }
         }
@@ -477,12 +578,13 @@ class FileParser {
     }
 
     /**
-     * Extract "As of date" from raw Excel data (typically cell B3)
+     * Extract "As of date" from raw Excel data (typically cell B3) - now language-aware
      */
     extractAsOfDate(rawData) {
+        const asOfDateHeader = this.getLocalizedHeader('date_field');
         for (let i = 0; i < Math.min(10, rawData.length); i++) {
             const row = rawData[i];
-            if (row[0] === 'As of date' && row[1]) {
+            if (row[0] === asOfDateHeader && row[1]) {
                 try {
                     // Parse the date value (could be Date object or string)
                     const dateValue = row[1];
@@ -521,22 +623,24 @@ class FileParser {
      */
     parsePortfolioRow(row) {
         try {
+            const rawContributionType = this.validateString(row[4], 'contributionType');
+            const rawPlan = this.validateString(row[1], 'plan');
+            
             return {
                 allocationDate: this.parseExcelDate(row[0], 'allocationDate'),
-                plan: this.validateString(row[1], 'plan'),
+                plan: this.normalizePlan(rawPlan),
                 instrumentType: this.validateString(row[2], 'instrumentType'),
                 instrument: this.validateString(row[3], 'instrument'),
-                contributionType: this.validateString(row[4], 'contributionType'),
-                costBasis: this.validateNumber(row[5], 'costBasis'),
-                marketPrice: this.validateNumber(row[6], 'marketPrice'),
+                contributionType: this.normalizeContributionType(rawContributionType),
+                costBasis: this.validateNumber(row[5], 'costBasis'),           // Transaction currency ✅
+                marketPrice: this.validateNumber(row[6], 'marketPrice'),       // Transaction currency ✅
                 availableFrom: this.parseExcelDate(row[7], 'availableFrom'),
                 expiryDate: this.parseExcelDate(row[8], 'expiryDate') || null,
-                allocatedQuantity: this.validateNumber(row[9], 'allocatedQuantity'),
-                outstandingQuantity: this.validateNumber(row[10], 'outstandingQuantity'),
-                availableQuantity: this.validateNumber(row[11], 'availableQuantity'),
-                currentOutstandingValue: this.validateNumber(row[12], 'currentOutstandingValue'),
-                currentAvailableValue: this.validateNumber(row[13], 'currentAvailableValue'),
-                purchaseAmount: this.validateNumber(row[14], 'purchaseAmount')
+                allocatedQuantity: this.validateNumber(row[9], 'allocatedQuantity'),     // Pure number ✅
+                outstandingQuantity: this.validateNumber(row[10], 'outstandingQuantity'), // Pure number ✅
+                availableQuantity: this.validateNumber(row[11], 'availableQuantity')     // Pure number ✅
+                // REMOVED: Mixed currency columns 12, 13 and non-existent column 14
+                // These contained user's display currency, not transaction currency
             };
         } catch (error) {
             config.error('❌ Error parsing portfolio row:', error.message);
@@ -549,12 +653,15 @@ class FileParser {
      */
     parseTransactionRow(row) {
         try {
+            const rawOrderType = this.validateString(row[2], 'orderType');
+            const rawStatus = this.validateString(row[4], 'status');
+            
             return {
                 orderReference: this.validateString(row[0], 'orderReference'),
                 transactionDate: this.parseExcelDate(row[1], 'transactionDate'),
-                orderType: this.validateString(row[2], 'orderType'),
+                orderType: this.normalizeOrderType(rawOrderType),
                 quantity: this.validateNumber(row[3], 'quantity'),
-                status: this.validateString(row[4], 'status'),
+                status: this.normalizeStatus(rawStatus),
                 executionPrice: this.validateNumber(row[5], 'executionPrice'),
                 instrument: this.validateString(row[6], 'instrument'),
                 productType: this.validateString(row[7], 'productType'),
@@ -907,9 +1014,22 @@ class FileParser {
     }
 
     /**
-     * Detect the company based on instrument field
+     * Detect the company based on instrument field (portfolio only - legacy method)
+     * @deprecated Use detectCompanyFromBothFiles for proper two-file analysis
      */
     detectCompany(portfolioData) {
+        config.warn('⚠️ Using legacy detectCompany method - consider using detectCompanyFromBothFiles');
+        return this.detectCompanyFromBothFiles(portfolioData, null);
+    }
+
+    /**
+     * Enhanced company detection checking BOTH portfolio and transaction files
+     * Company is 'Allianz' only if ALL entries in BOTH files have "Allianz share" as instrument
+     * @param {Object} portfolioData - Parsed portfolio data with entries
+     * @param {Object} transactionData - Parsed transaction data with entries (optional)
+     * @returns {String} 'Allianz' or 'Other'
+     */
+    detectCompanyFromBothFiles(portfolioData, transactionData = null) {
         if (!portfolioData || !portfolioData.entries || portfolioData.entries.length === 0) {
             config.warn('⚠️ No portfolio data available for company detection');
             return 'Other';
@@ -917,33 +1037,438 @@ class FileParser {
 
         try {
             // Check if ALL portfolio entries have "Allianz share" as instrument
-            config.debug('🔍 Checking instruments for company detection:');
+            // config.debug('🔍 Checking portfolio instruments for company detection:');
             portfolioData.entries.forEach((entry, index) => {
                 const instrument = entry.instrument || '';
                 const isAllianz = instrument.toLowerCase().includes('allianz share');
-                config.debug(`  Entry ${index}: "${instrument}" -> isAllianz: ${isAllianz}`);
+                // config.debug(`  Portfolio Entry ${index}: "${instrument}" -> isAllianz: ${isAllianz}`);
             });
             
-            const allHaveAllianzShare = portfolioData.entries.every(entry => 
+            const portfolioAllAllianz = portfolioData.entries.every(entry => 
                 entry.instrument && 
                 entry.instrument.toLowerCase().includes('allianz share')
             );
 
-            // Default to 'Other', only set to 'Allianz' if ALL entries are Allianz shares
-            const company = allHaveAllianzShare ? 'Allianz' : 'Other';
+            // If no transaction data, only check portfolio
+            if (!transactionData || !transactionData.entries || transactionData.entries.length === 0) {
+                const company = portfolioAllAllianz ? 'Allianz' : 'Other';
+                config.debug('🏢 Company Detection Result (portfolio only):', {
+                    company: company,
+                    portfolioAllAllianz: portfolioAllAllianz,
+                    portfolioEntries: portfolioData.entries.length,
+                    transactionEntries: 0
+                });
+                return company;
+            }
+
+            // Check transaction file instruments
+            config.debug('🔍 Checking transaction instruments for company detection:');
+            const transactionInstruments = transactionData.entries
+                .map(entry => entry.instrument)
+                .filter(Boolean);
             
-            config.debug('🏢 Company Detection Result:', {
+            transactionInstruments.forEach((instrument, index) => {
+                const isAllianz = instrument.toLowerCase().includes('allianz share');
+                config.debug(`  Transaction Entry ${index}: "${instrument}" -> isAllianz: ${isAllianz}`);
+            });
+            
+            const transactionAllAllianz = transactionInstruments.length > 0 && 
+                transactionInstruments.every(instrument => 
+                    instrument.toLowerCase().includes('allianz share')
+                );
+
+            // Company is 'Allianz' only if ALL entries in BOTH files are Allianz shares
+            const company = (portfolioAllAllianz && transactionAllAllianz) ? 'Allianz' : 'Other';
+            
+            config.debug('🏢 Company Detection Result (both files):', {
                 company: company,
-                allHaveAllianzShare: allHaveAllianzShare,
-                totalEntries: portfolioData.entries.length,
-                instruments: portfolioData.entries.map(entry => entry.instrument).filter(Boolean)
+                portfolioAllAllianz: portfolioAllAllianz,
+                transactionAllAllianz: transactionAllAllianz,
+                portfolioEntries: portfolioData.entries.length,
+                transactionEntries: transactionInstruments.length,
+                portfolioInstruments: portfolioData.entries.map(e => e.instrument).filter(Boolean),
+                transactionInstruments: transactionInstruments
             });
 
             return company;
+
         } catch (error) {
             config.error('❌ Error during company detection:', error);
             return 'Other';
         }
+    }
+
+    /**
+     * Initialize column mappings for different languages
+     */
+    initializeColumnMappings() {
+        return {
+            portfolio: {
+                allocation_date: 0,
+                plan: 1,
+                instrument_type: 2,
+                instrument: 3,
+                contribution_type: 4,
+                strike_price: 5,
+                market_price: 6,
+                available_from: 7,
+                expiry_date: 8,
+                allocated_quantity: 9,
+                outstanding_quantity: 10,
+                available_quantity: 11,
+                current_outstanding_value: 12,
+                current_available_value: 13,
+                purchase_amount: 14
+            },
+            transaction: {
+                order_reference: 0,
+                date: 1,
+                order_type: 2,
+                quantity: 3,
+                status: 4,
+                execution_price: 5,
+                instrument: 6,
+                product_type: 7,
+                strike_price: 8,
+                taxes_withheld: 9,
+                fees: 10,
+                net_proceeds: 11
+            }
+        };
+    }
+
+    /**
+     * Get localized header for a given key
+     */
+    getLocalizedHeader(key) {
+        if (typeof translationManager !== 'undefined') {
+            // Temporarily set language to detected language for header lookup
+            const originalLang = translationManager.currentLanguage;
+            translationManager.currentLanguage = this.detectedLanguage;
+            const header = translationManager.t(key);
+            translationManager.currentLanguage = originalLang;
+            return header;
+        }
+        // Fallback to English headers
+        const fallbacks = {
+            user_id: 'User ID',
+            date_field: 'As of date',
+            allocation_date: 'Allocation date',
+            order_reference: 'Order reference'
+        };
+        return fallbacks[key] || key;
+    }
+
+    /**
+     * Get detected language
+     */
+    getDetectedLanguage() {
+        return this.detectedLanguage;
+    }
+
+    /**
+     * Normalize contribution type to English for calculations
+     */
+    normalizeContributionType(rawValue) {
+        if (!rawValue) return '';
+        
+        const normalized = rawValue.toLowerCase().trim();
+        
+        // Map all languages to English values
+        const contributionTypeMap = {
+            // English
+            'purchase': 'Purchase',
+            'company match': 'Company match',
+            'award': 'Award',
+            
+            // German
+            'kauf': 'Purchase',
+            'unternehmensbeitrag': 'Company match',
+            'zuteilung': 'Award',
+            
+            // Dutch
+            'aankoop': 'Purchase',
+            'overeenkomst bedrijf': 'Company match',
+            'toekenning': 'Award',
+            
+            // French
+            'achat': 'Purchase',
+            'contrepartie de l\'entreprise': 'Company match',
+            'prime': 'Award',
+            
+            // Spanish
+            'compra': 'Purchase',
+            'contribución de la empresa': 'Company match',
+            'adjudicación': 'Award',
+            
+            // Italian
+            'acquisto': 'Purchase',
+            'corrispondenza società': 'Company match',
+            'premio': 'Award',
+            
+            // Polish
+            'zakup': 'Purchase',
+            'wkład pracodawcy': 'Company match',
+            'premia': 'Award',
+            
+            // Turkish
+            'satın alma': 'Purchase',
+            'şirket eş hissesi': 'Company match',
+            'prim': 'Award',
+            
+            // Portuguese
+            'compra': 'Purchase',
+            'contribuição proporcional da empresa': 'Company match',
+            'prêmio': 'Award',
+            
+            // Czech (uses English)
+            'purchase': 'Purchase',
+            'company match': 'Company match',
+            'award': 'Award',
+            
+            // Romanian
+            'achiziție': 'Purchase',
+            'corelare companie': 'Company match',
+            'atribuire': 'Award',
+            
+            // Croatian
+            'kupnja': 'Purchase',
+            'bonus dionice tvrtke': 'Company match',
+            'dodjela': 'Award',
+            
+            // Indonesian
+            'beli': 'Purchase',
+            'kecocokan perusahaan': 'Company match',
+            'insentif': 'Award',
+            
+            // Chinese (Simplified)
+            '购买': 'Purchase',
+            '公司匹配': 'Company match', 
+            '奖励': 'Award',
+            '供款': 'Purchase'  // Based on "供款类型" found in files
+        };
+        
+        const result = contributionTypeMap[normalized] || rawValue;
+        // config.debug('🔄 Normalizing contributionType:', rawValue, '→', result);
+        return result;
+    }
+    
+    /**
+     * Normalize plan name to English for calculations
+     */
+    normalizePlan(rawValue) {
+        if (!rawValue) return '';
+        
+        const normalized = rawValue.toLowerCase().trim();
+        
+        // Map all languages to English plan names
+        const planMap = {
+            // English
+            'employee share purchase plan': 'Employee Share Purchase Plan',
+            'free share': 'Free Share',
+            'allianz dividend reinvestment': 'Allianz Dividend Reinvestment',
+            
+            // German - need to check actual German plan names from the Excel files
+            'mitarbeiteraktienkaufplan': 'Employee Share Purchase Plan',
+            'kostenlose aktie': 'Free Share',
+            'allianz dividenden-reinvestition': 'Allianz Dividend Reinvestment',
+            
+            // Dutch - need to check actual Dutch plan names
+            'medewerkersaandelenplan': 'Employee Share Purchase Plan',
+            'gratis aandeel': 'Free Share',
+            'allianz dividend herinvestering': 'Allianz Dividend Reinvestment',
+            
+            // Add more languages as needed
+            // The Excel files should tell us the exact plan names used
+        };
+        
+        const result = planMap[normalized] || rawValue;
+        // config.debug('🔄 Normalizing plan:', rawValue, '→', result);
+        return result;
+    }
+
+    /**
+     * Normalize order type to English for calculations
+     */
+    normalizeOrderType(rawValue) {
+        if (!rawValue) return '';
+        
+        const normalized = rawValue.toLowerCase().trim();
+        
+        // Map all languages to English order types
+        const orderTypeMap = {
+            // English
+            'sell': 'Sell',
+            'sell with price limit': 'Sell with price limit',
+            'sell at market price': 'Sell at market price',
+            'transfer': 'Transfer',
+            'dividend': 'Dividend',
+            
+            // German
+            'verkauf': 'Sell',
+            'verkauf mit preislimit': 'Sell with price limit',
+            'verkauf zum marktpreis': 'Sell at market price',
+            'übertragung': 'Transfer',
+            'dividende': 'Dividend',
+            
+            // Dutch
+            'verkoop': 'Sell',
+            'verkoop met prijslimiet': 'Sell with price limit',
+            'verkoop tegen marktprijs': 'Sell at market price',
+            'overdracht': 'Transfer',
+            'dividend': 'Dividend',
+            
+            // French
+            'vente': 'Sell',
+            'vente avec limite de prix': 'Sell with price limit',
+            'vente au prix du marché': 'Sell at market price',
+            'transfert': 'Transfer',
+            'dividende': 'Dividend',
+            
+            // Spanish
+            'vender': 'Sell',
+            'vender con precio límite': 'Sell with price limit',
+            'venta a precio de mercado': 'Sell at market price',
+            'transferencia': 'Transfer',
+            'dividendo': 'Dividend',
+            
+            // Italian
+            'vendere': 'Sell',
+            'vendere a limite di prezzo': 'Sell with price limit',
+            'vendita a prezzo di mercato': 'Sell at market price',
+            'trasferimento': 'Transfer',
+            'dividendi': 'Dividend',
+            
+            // Polish
+            'sprzedaj': 'Sell',
+            'sprzedaj z limitem ceny': 'Sell with price limit',
+            'sprzedaż po cenie rynkowej': 'Sell at market price',
+            'przelew': 'Transfer',
+            'dywidenda': 'Dividend',
+            
+            // Turkish
+            'satış': 'Sell',
+            'fiyat limitli satış': 'Sell with price limit',
+            'piyasa fiyatından satış': 'Sell at market price',
+            'transfer': 'Transfer',
+            'temettü': 'Dividend',
+            
+            // Portuguese
+            'venda': 'Sell',
+            'venda com limite de preço': 'Sell with price limit',
+            'venda ao preço de mercado': 'Sell at market price',
+            'transferência': 'Transfer',
+            'dividendos': 'Dividend',
+            
+            // Czech
+            'sell': 'Sell',
+            'sell with price limit': 'Sell with price limit',
+            'prodej za tržní cenu': 'Sell at market price',
+            'převod': 'Transfer',
+            'dividend': 'Dividend',
+            
+            // Romanian
+            'vânzare': 'Sell',
+            'vânzare cu limită de preț': 'Sell with price limit',
+            'vânzare la preț de piață': 'Sell at market price',
+            'transfer': 'Transfer',
+            'dividend': 'Dividend',
+            
+            // Croatian
+            'prodaja': 'Sell',
+            'prodaja s ograničenjem cijene': 'Sell with price limit',
+            'prodaja po tržišnoj cijeni': 'Sell at market price',
+            'prijenos': 'Transfer',
+            'dividenda': 'Dividend',
+            
+            // Indonesian
+            'jual': 'Sell',
+            'jual dengan batas harga': 'Sell with price limit',
+            'jual pada harga pasar': 'Sell at market price',
+            'transfer': 'Transfer',
+            'dividen': 'Dividend',
+            
+            // Chinese (Simplified)
+            '卖出': 'Sell',
+            '设定价格限制出售': 'Sell with price limit',  // Found in Chinese files
+            '市场价格出售': 'Sell at market price',
+            '转移': 'Transfer',
+            '股息': 'Dividend'
+        };
+        
+        const result = orderTypeMap[normalized] || rawValue;
+        // config.debug('🔄 Normalizing orderType:', rawValue, '→', result);
+        return result;
+    }
+
+    /**
+     * Normalize status to English for calculations
+     */
+    normalizeStatus(rawValue) {
+        if (!rawValue) return '';
+        
+        const normalized = rawValue.toLowerCase().trim();
+        
+        // Map all languages to English status values
+        const statusMap = {
+            // English
+            'executed': 'Executed',
+            'cancelled': 'Cancelled',
+            
+            // German
+            'ausgeführt': 'Executed',
+            'storniert': 'Cancelled',
+            
+            // Dutch
+            'uitgevoerd': 'Executed',
+            'geannuleerd': 'Cancelled',
+            
+            // French
+            'exécuté': 'Executed',
+            'annulé': 'Cancelled',
+            
+            // Spanish
+            'ejecutado': 'Executed',
+            'cancelado': 'Cancelled',
+            
+            // Italian
+            'eseguito': 'Executed',
+            'annullato': 'Cancelled',
+            
+            // Polish
+            'wykonano': 'Executed',
+            'anulowano': 'Cancelled',
+            
+            // Turkish
+            'gerçekleştirildi': 'Executed',
+            'iptal edildi': 'Cancelled',
+            
+            // Portuguese
+            'executado': 'Executed',
+            'cancelado': 'Cancelled',
+            
+            // Romanian
+            'executat': 'Executed',
+            'anulat': 'Cancelled',
+            
+            // Croatian
+            'izvršeno': 'Executed',
+            'otkazano': 'Cancelled',
+            
+            // Indonesian
+            'dilaksanakan': 'Executed',
+            'dibatalkan': 'Cancelled',
+            
+            // Chinese (Simplified)
+            '已执行': 'Executed',
+            '已完成': 'Executed',
+            '取消': 'Cancelled',
+            '已取消': 'Cancelled'
+        };
+        
+        const result = statusMap[normalized] || rawValue;
+        // config.debug('🔄 Normalizing status:', rawValue, '→', result);
+        return result;
     }
 
     /**
@@ -953,6 +1478,7 @@ class FileParser {
         this.portfolioData = null;
         this.transactionData = null;
         this.historicalPrices = null;
+        this.detectedLanguage = 'english';
     }
 }
 

@@ -15,15 +15,49 @@
     <div class="container">
         <div class="header">
             <div class="header-top">
-                <div class="theme-selector">
-                    <label for="theme">Theme:</label>
-                    <select id="theme" onchange="switchTheme(this.value)">
-                        <option value="light">Light</option>
-                        <option value="dark">Dark</option>
-                    </select>
-                </div>
-                <div class="logo-image">
-                    <img src="visuate-rb.png" alt="Logo" style="max-width: 100%;">
+                <div class="banner-grid">
+                    <div class="grid-item theme-label">
+                        <label for="theme">Theme:</label>
+                    </div>
+                    <div class="grid-item theme-dropdown">
+                        <select id="theme" onchange="switchTheme(this.value)">
+                            <option value="light">Light</option>
+                            <option value="dark">Dark</option>
+                        </select>
+                    </div>
+                    <div class="grid-item logo-center">
+                        <img src="visuate-rb.png" alt="Logo">
+                    </div>
+                    <div class="grid-item language-label">
+                        <label for="languageSelect">Language:</label>
+                    </div>
+                    <div class="grid-item language-dropdown" id="languageSelector">
+                        <select id="languageSelect" onchange="translationManager.setLanguage(this.value)">
+                            <option value="english">English</option>
+                            <option value="german">Deutsch</option>
+                            <option value="dutch">Nederlands</option>
+                            <option value="french">Français</option>
+                            <option value="spanish">Español</option>
+                            <option value="italian">Italiano</option>
+                            <option value="polish">Polski</option>
+                            <option value="turkish">Türkçe</option>
+                            <option value="portuguese">Português</option>
+                            <option value="czech">Čeština</option>
+                            <option value="romanian">Română</option>
+                            <option value="croatian">Hrvatski</option>
+                            <option value="indonesian">Bahasa Indonesia</option>
+                            <option value="chinese">中文</option>
+                        </select>
+                    </div>
+                    <div class="grid-item format-label">
+                        <label for="formatSelect" data-translate="format_label">Format:</label>
+                    </div>
+                    <div class="grid-item format-dropdown" id="formatSelector">
+                        <select id="formatSelect" onchange="setNumberFormat(this.value)">
+                            <option value="us">10,000.00</option>
+                            <option value="eu">10.000,00</option>
+                        </select>
+                    </div>
                 </div>
             </div>
             
@@ -54,51 +88,34 @@
                         <div class="step-number">1</div>
                         <div class="step-content">
                             <h3>Log in to the EquatePlus website</h3>
-                            <p>Access your EquatePlus account through their website.</p>
+                            <p>Access your EquatePlus account through their website and navigate to your account menu.</p>
+                            <div class="help-image">
+                                <img src="Transaction&Preferences.png" alt="EquatePlus account menu navigation" style="max-width: 100%; border-radius: 6px; border: 1px solid var(--border-color);">
+                            </div>
                         </div>
                     </div>
                     <div class="help-step">
                         <div class="step-number">2</div>
                         <div class="step-content">
-                            <h3>Navigate to Preferences</h3>
-                            <p>Go to your account (blue square in picture below) and select 'Preferences'.</p>
-                            <div class="help-image">
-                                <img src="Transaction&Preferences.png" alt="Account menu and Preferences access" style="max-width: 100%; border-radius: 6px; border: 1px solid var(--border-color);">
-                            </div>
-                        </div>
-                    </div>
-                    <div class="help-step">
-                        <div class="step-number">3</div>
-                        <div class="step-content">
-                            <h3>Set Language to English</h3>
-                            <p>Set language to English (see red square in picture below)</p>
-                            <div class="help-image">
-                                <img src="PreferencesEnglish.png" alt="Set Preferences to English" style="max-width: 100%; border-radius: 6px; border: 1px solid var(--border-color);">
-                            </div>
-                        </div>
-                    </div>
-                    <div class="help-step">
-                        <div class="step-number">4</div>
-                        <div class="step-content">
                             <h3>Download Portfolio Details</h3>
-                            <p>Go to tab 'Overview - Plans & Trading' (green square in top picture) and click on the button next to 'YOUR PORTFOLIO - Estimated Gross Value' (red circle in image below)</p>
+                            <p>Go to tab 'Overview - Plans & Trading' (green rectangle in top picture) and click on the button next to 'YOUR PORTFOLIO - Estimated Gross Value' (see image below)</p>
                             <div class="help-image">
                                 <img src="PortfolioDetails_download.png" alt="Portfolio Details Download" style="max-width: 100%; border-radius: 6px; border: 1px solid var(--border-color);">
                             </div>
                         </div>
                     </div>
                     <div class="help-step">
-                        <div class="step-number">5</div>
+                        <div class="step-number">3</div>
                         <div class="step-content">
                             <h3>Download Transaction History (Optional)</h3>
-                            <p>If you have ever sold any shares: go to tab 'Library - Transactions & Records' and click on the button next to 'Transaction history' (red circle in top image)</p>
+                            <p>If you have ever sold any shares: go to tab 'Library - Transactions & Records' (orange rectangle in top picture) and click on the button next to 'Transaction history'.</p>
                         </div>
                     </div>
                     <div class="help-step">
-                        <div class="step-number">6</div>
+                        <div class="step-number">4</div>
                         <div class="step-content">
-                            <h3>Close EquatePlus and Upload Files</h3>
-                            <p>You can close EquatePlus site. Go to tab 'Upload' and upload your downloaded file(s) and click on button 'Generate Analysis' (see picture below)</p>
+                            <h3>Upload Files and Analyze</h3>
+                            <p>Close EquatePlus, go to the <strong>"📤 Upload"</strong> tab, upload your downloaded file(s) and click <strong>"Generate Analysis"</strong>.</p>
                             <div class="help-image">
                                 <img src="Upload.png" alt="Upload files interface" style="max-width: 100%; border-radius: 6px; border: 1px solid var(--border-color);">
                             </div>
@@ -125,7 +142,7 @@
                         </div>
                     </div>
                     <div class="upload-actions">
-                        <button class="analyze-btn" id="analyzeBtn" disabled onclick="generateAnalysis()">
+                        <button class="analyze-btn" id="analyzeBtn" disabled>
                             Please upload Portfolio Details
                         </button>
                         <button class="clear-data-btn" onclick="clearCachedData()">
@@ -155,7 +172,7 @@
                                 </div>
                             </div>
                             <div class="section-reorder">
-                                <label>Section Order:</label>
+                                <label id="sectionOrderLabel">Section Order:</label>
                                 <div class="section-icons" id="sectionIcons">
                                     <div class="section-icon" data-section="cards" title="Portfolio Summary" draggable="true">🃏</div>
                                     <div class="section-icon" data-section="timeline" title="Timeline Chart" draggable="true">📈</div>
@@ -165,7 +182,7 @@
                             </div>
                             <div class="results-actions">
                                 <div class="price-input-compact">
-                                    <input type="number" id="manualPriceInput" placeholder="€0.00" step="0.01" min="0">
+                                    <input type="number" id="manualPriceInput" placeholder="0.00" step="0.01" min="0">
                                     <button class="quick-btn" onclick="updateManualPrice()">
                                         Update Price
                                     </button>
@@ -179,47 +196,48 @@
                             <!-- First Row: Investment Details -->
                             <div class="metric-card highlight-investment">
                                 <h3>Your Investment</h3>
-                                <div class="metric-value" id="userInvestment">€0.00</div>
+                                <div class="metric-value" id="userInvestment">-</div>
                             </div>
                             <div class="metric-card">
                                 <h3>Company Match</h3>
-                                <div class="metric-value" id="companyMatch">€0.00</div>
+                                <div class="metric-value" id="companyMatch">-</div>
                             </div>
                             <div class="metric-card">
                                 <h3>Free Shares</h3>
-                                <div class="metric-value" id="freeShares">€0.00</div>
+                                <div class="metric-value" id="freeShares">-</div>
                             </div>
                             <div class="metric-card">
                                 <h3>Dividend Income</h3>
-                                <div class="metric-value" id="dividendIncome">€0.00</div>
+                                <div class="metric-value" id="dividendIncome">-</div>
                             </div>
                             
                             <!-- Second Row: Portfolio Performance -->
                             <div class="metric-card highlight-total-investment">
                                 <h3>Total Investment</h3>
-                                <div class="metric-value" id="totalInvestment">€0.00</div>
+                                <div class="metric-value" id="totalInvestment">-</div>
                             </div>
                             <div class="metric-card">
                                 <h3>Current Portfolio</h3>
-                                <div class="metric-value" id="currentValue">€0.00</div>
+                                <div class="metric-value" id="currentValue">-</div>
                             </div>
                             <div class="metric-card">
                                 <h3>Total Sold</h3>
-                                <div class="metric-value" id="totalSold">€0.00</div>
+                                <div class="metric-value" id="totalSold">-</div>
+                                <div class="metric-disclaimer" id="totalSoldDisclaimer" style="display: none;"></div>
                             </div>
                             <div class="metric-card">
                                 <h3>Total Value</h3>
-                                <div class="metric-value" id="totalValue">€0.00</div>
+                                <div class="metric-value" id="totalValue">-</div>
                             </div>
                             
                             <!-- Third Row: Returns -->
                             <div class="metric-card highlight-investment">
                                 <h3>Return on Your Investment</h3>
-                                <div class="metric-value" id="totalReturn">€0.00</div>
+                                <div class="metric-value" id="totalReturn">-</div>
                             </div>
                             <div class="metric-card highlight-total-investment">
                                 <h3>Return on Total Investment</h3>
-                                <div class="metric-value" id="returnOnTotalInvestment">€0.00</div>
+                                <div class="metric-value" id="returnOnTotalInvestment">-</div>
                             </div>
                             <div class="metric-card highlight-investment">
                                 <h3>Return % on Your Investment</h3>
@@ -244,6 +262,12 @@
                         <!-- Chart Container -->
                         <div class="chart-container">
                             <h3>Portfolio Performance Timeline</h3>
+                            <!-- Timeline Disclaimer - positioned prominently below title -->
+                            <div id="timelineDisclaimer" class="timeline-disclaimer" style="display: none;">
+                                <div class="disclaimer-content">
+                                    <!-- Content will be populated dynamically by JavaScript -->
+                                </div>
+                            </div>
                             <div id="portfolioChart" style="width:100%;height:450px;min-height:450px;"></div>
                         </div>
 
@@ -287,7 +311,12 @@
         </div>
     </div>
 
+    <script src="js/translationData.js"></script>
+    <script src="js/translations.js"></script>
     <script src="js/database.js"></script>
+    <script src="js/currencyMappings.js"></script>
+    <script src="js/currencyDetector.js"></script>
+    <script src="js/fileAnalyzer.js"></script>
     <script src="js/fileParser.js"></script>
     <script src="js/calculator.js"></script>
     <script src="js/exporter.js"></script>

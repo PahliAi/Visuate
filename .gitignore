@@ -1,16 +1,12 @@
-# dev files
+# Development and testing files
 png/
-reqs/
 test/
+languages/
+reqs/
+docs/
 
-# json files
-*.json
-
-# md files
+# Development documentation
 CLAUDE.md
-
-# pdf files
-*.pdf
 
 # Dependencies
 node_modules/
@@ -33,6 +29,7 @@ build/
 .idea/
 *.swp
 *.swo
+.claude/
 
 # OS generated files
 .DS_Store

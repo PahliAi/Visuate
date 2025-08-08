@@ -1,0 +1,231 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Equate Application Flow Diagram</title>
+    <script src="../vendor/mermaid.min.js"></script>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+            background-color: #f8f9fa;
+        }
+        .container {
+            max-width: 100%;
+            margin: 0 auto;
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        .diagram {
+            text-align: center;
+            margin: 20px 0;
+        }
+        h1 {
+            color: #333;
+            text-align: center;
+            margin-bottom: 30px;
+        }
+        .legend {
+            background: #f8f9fa;
+            padding: 15px;
+            border-radius: 5px;
+            margin: 20px 0;
+        }
+        .legend h3 {
+            margin-top: 0;
+            color: #555;
+        }
+        .legend-item {
+            display: inline-block;
+            margin: 5px 15px;
+            padding: 5px 10px;
+            border-radius: 3px;
+            font-size: 12px;
+        }
+        .user-action { background: #e1f5fe; border: 1px solid #0277bd; }
+        .processing { background: #f3e5f5; border: 1px solid #7b1fa2; }
+        .decision { background: #fff3e0; border: 1px solid #f57c00; }
+        .storage { background: #e8f5e8; border: 1px solid #388e3c; }
+        .error { background: #ffebee; border: 1px solid #d32f2f; }
+        .output { background: #f1f8e9; border: 1px solid #558b2f; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Equate Application Flow Diagram</h1>
+        
+        <div class="legend">
+            <h3>Legend:</h3>
+            <span class="legend-item user-action">User Actions</span>
+            <span class="legend-item processing">Processing</span>
+            <span class="legend-item decision">Decisions</span>
+            <span class="legend-item storage">Storage</span>
+            <span class="legend-item error">Error Handling</span>
+            <span class="legend-item output">Output/Results</span>
+        </div>
+        
+        <div class="diagram">
+            <div class="mermaid">
+                flowchart TD
+                    %% Application Start and Cache Check
+                    AppStart["Application Start"] --> InitialCacheCheck{"Cached Data<br/>Available?"}
+                    InitialCacheCheck -->|"Yes"| AutoFillUI["Auto-fill Upload Areas<br/>Show Cache Indicators"]
+                    InitialCacheCheck -->|"No"| DefaultUploadTab["Default to Upload Tab"]
+                    
+                    AutoFillUI --> LoadCachedData["Load Cached Data"]
+                    LoadCachedData --> AutoCalculate["Auto-run Calculations"]
+                    AutoCalculate --> DefaultResultsTab["Default to Results Tab"]
+                    
+                    %% User Actions and Entry Points
+                    DefaultUploadTab --> User["User Actions"]
+                    DefaultResultsTab --> User
+                    User --> Upload["File Upload<br/>Portfolio + Transaction"]
+                    User --> ManualPrice["Manual Price Input"]
+                    User --> Settings["Settings Change<br/>Theme/Language/Format"]
+                    
+                    %% File Upload Flow
+                    Upload --> FileAnalyzer["FileAnalyzer<br/>Pre-parsing Validation"]
+                    
+                    %% FileAnalyzer Decision Points
+                    FileAnalyzer --> CurrencyCheck{"Currency<br/>Compatibility?"}
+                    FileAnalyzer --> LanguageDetect["Language Detection<br/>13 Languages"]
+                    FileAnalyzer --> CacheCheck["Cache Validation<br/>Sequential Uploads"]
+                    
+                    %% Currency Validation Flow
+                    CurrencyCheck -->|"Mismatch"| CurrencyError["Transaction File Rejected<br/>Clear from UI"]
+                    CurrencyCheck -->|"Valid"| ParseFiles["File Parsing Phase"]
+                    CurrencyError --> CacheClean["Clear Incompatible<br/>Cached Data"]
+                    CacheClean --> UIUpdate["Update UI Indicators"]
+                    UIUpdate --> ParseFiles
+                    
+                    %% File Parsing Phase
+                    ParseFiles --> DateDetect{"Date Format<br/>Ambiguous?"}
+                    DateDetect -->|"Yes"| UserPrompt["Prompt User<br/>Date Format Selection"]
+                    DateDetect -->|"No"| AutoDetect["Auto-detect Format"]
+                    UserPrompt --> ParsePortfolio["Parse Portfolio File"]
+                    AutoDetect --> ParsePortfolio
+                    
+                    ParsePortfolio --> ParseTransaction{"Transaction<br/>File Present?"}
+                    ParseTransaction -->|"Yes"| ParseTransFile["Parse Transaction File"]
+                    ParseTransaction -->|"No"| CompanyDetect["Company Detection<br/>Allianz vs Other"]
+                    ParseTransFile --> UserIDValidate["Validate User ID Match"]
+                    UserIDValidate --> CompanyDetect
+                    
+                    %% Company Detection and Historical Data
+                    CompanyDetect --> IsAllianz{"Company<br/>= Allianz?"}
+                    IsAllianz -->|"Yes"| LoadHistorical["Load hist.xlsx<br/>Historical Prices"]
+                    IsAllianz -->|"No"| UseMarketPrice["Use Portfolio<br/>Market Price"]
+                    
+                    LoadHistorical --> EnhanceData["Enhance with<br/>AsOfDate Price"]
+                    EnhanceData --> SaveData["Save to IndexedDB<br/>with Metadata"]
+                    UseMarketPrice --> SaveData
+                    
+                    %% Data Storage and Caching
+                    SaveData --> EquateDB[("IndexedDB<br/>Local Storage")]
+                    EquateDB --> Calculator["PortfolioCalculator<br/>Core Metrics Engine"]
+                    Calculator --> TimelineGen["Generate Portfolio<br/>Timeline with Transactions"]
+                    TimelineGen --> Calculations["Portfolio Calculations<br/>ROI, P&L, etc."]
+                    
+                    %% Manual Price Override Flow
+                    ManualPrice --> PriceOverride["Override Current Price"]
+                    PriceOverride --> Recalculate["Real-time Recalculation"]
+                    Recalculate --> UpdateCharts["Update All Charts<br/>with Manual Indicators"]
+                    
+                    %% Results Display and Visualization
+                    Calculations --> DisplayResults["Display Results Phase"]
+                    DisplayResults --> MetricsCards["Update Metrics Cards<br/>with Number Format"]
+                    DisplayResults --> CreateCharts["Create Interactive Charts"]
+                    
+                    CreateCharts --> PortfolioChart["Portfolio Timeline Chart<br/>with Transaction Markers"]
+                    CreateCharts --> PerformanceChart["Performance Bar Chart<br/>ROI Breakdown"]
+                    CreateCharts --> PieChart["Investment Sources<br/>Pie Chart"]
+                    
+                    %% Chart Configuration with Format Support
+                    PortfolioChart --> ChartFormat["Apply Number Format<br/>US: 10,000.00 | EU: 10.000,00"]
+                    PerformanceChart --> ChartFormat
+                    PieChart --> ChartFormat
+                    ChartFormat --> PlotlyRender["Plotly.js Rendering<br/>with layout.separators"]
+                    
+                    %% UI Updates and Language Support
+                    PlotlyRender --> UILanguage["Update UI Language<br/>Chart Labels & Text"]
+                    UILanguage --> SectionOrder["Apply Section Ordering<br/>Drag & Drop Support"]
+                    SectionOrder --> ShowResults["Show Results Tab<br/>Enable Export Buttons"]
+                    
+                    %% Settings and Preferences Flow
+                    Settings --> ThemeChange{"Theme<br/>Change?"}
+                    Settings --> LanguageChange{"Language<br/>Change?"}
+                    Settings --> FormatChange{"Number Format<br/>Change?"}
+                    
+                    ThemeChange -->|"Yes"| ApplyTheme["Apply Dark/Light Theme<br/>Re-render Charts"]
+                    LanguageChange -->|"Yes"| TranslationUpdate["Update All UI Text<br/>Chart Labels"]
+                    FormatChange -->|"Yes"| ReformatNumbers["Update Number Display<br/>Charts & Metrics"]
+                    
+                    ApplyTheme --> SavePrefs["Save Preferences<br/>to IndexedDB"]
+                    TranslationUpdate --> SavePrefs
+                    ReformatNumbers --> SavePrefs
+                    SavePrefs --> RefreshDisplay["Refresh Display<br/>with New Settings"]
+                    
+                    %% Export Flow
+                    ShowResults --> ExportTrigger["User Clicks PDF Export"]
+                    ExportTrigger --> GenerateHTML["Generate HTML Report<br/>with Embedded Charts"]
+                    GenerateHTML --> HTMLPreview["HTML Preview<br/>(Could be saved as HTML)"]
+                    HTMLPreview --> ConvertToPDF["Convert HTML to PDF"]
+                    ConvertToPDF --> DownloadPDF["Download PDF Report"]
+                    
+                    %% Error Handling Flow
+                    FileAnalyzer -.->|"Error"| ErrorHandler["Error Handler"]
+                    ParseFiles -.->|"Error"| ErrorHandler
+                    Calculator -.->|"Error"| ErrorHandler
+                    CreateCharts -.->|"Error"| ErrorHandler
+                    
+                    ErrorHandler --> ErrorType{"Error<br/>Type?"}
+                    ErrorType -->|"Currency Mismatch"| CurrencyAlert["Show Currency Alert<br/>Reject Transaction File"]
+                    ErrorType -->|"File Format"| FileFormatError["Show Format Error<br/>with Resolution Steps"]
+                    ErrorType -->|"Calculation Error"| CalcError["Show Calculation Error<br/>with Fallback Options"]
+                    ErrorType -->|"Chart Error"| ChartError["Show Chart Placeholder<br/>with Error Message"]
+                    
+                    CurrencyAlert --> UserAction["User Takes Action<br/>Upload Compatible Files"]
+                    FileFormatError --> UserAction
+                    CalcError --> UserAction
+                    ChartError --> UserAction
+                    
+                    %% Styling
+                    classDef userAction fill:#e1f5fe,stroke:#0277bd,stroke-width:2px
+                    classDef processing fill:#f3e5f5,stroke:#7b1fa2,stroke-width:2px
+                    classDef decision fill:#fff3e0,stroke:#f57c00,stroke-width:2px
+                    classDef storage fill:#e8f5e8,stroke:#388e3c,stroke-width:2px
+                    classDef error fill:#ffebee,stroke:#d32f2f,stroke-width:2px
+                    classDef output fill:#f1f8e9,stroke:#558b2f,stroke-width:2px
+                    
+                    class User,Upload,ManualPrice,Settings,UserPrompt,ExportTrigger userAction
+                    class FileAnalyzer,ParseFiles,Calculator,CreateCharts,DisplayResults,AutoFillUI,LoadCachedData,AutoCalculate processing
+                    class InitialCacheCheck,CurrencyCheck,DateDetect,ParseTransaction,IsAllianz,ThemeChange,LanguageChange,FormatChange,ErrorType decision
+                    class EquateDB,SaveData,SavePrefs storage
+                    class CurrencyError,ErrorHandler,CurrencyAlert,FileFormatError,CalcError,ChartError error
+                    class ShowResults,DownloadPDF,HTMLPreview,RefreshDisplay,DefaultResultsTab,DefaultUploadTab output
+            </div>
+        </div>
+        
+        <p style="text-align: center; color: #666; margin-top: 30px;">
+            <strong>Equate Application v0.26+ Complete Flow Diagram</strong><br>
+            Generated from reqs/flow.md
+        </p>
+    </div>
+
+    <script>
+        // Initialize Mermaid
+        mermaid.initialize({ 
+            startOnLoad: true,
+            theme: 'default',
+            flowchart: {
+                useMaxWidth: true,
+                htmlLabels: true,
+                curve: 'cardinal'
+            }
+        });
+    </script>
+</body>
+</html>
