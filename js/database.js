@@ -392,7 +392,8 @@ class EquateDB {
                 null, // Clear transaction data
                 cachedData.userId,
                 cachedData.isEnglish,
-                cachedData.company
+                cachedData.company,
+                cachedData.currency  // Preserve the currency
             );
             config.debug('✅ Cleared transaction data from cache, kept portfolio data');
         }

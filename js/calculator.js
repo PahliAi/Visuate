@@ -458,7 +458,6 @@ class PortfolioCalculator {
     calculateCurrentValue(entries) {
         if (this.priceSource === 'manual' && this.currentPrice) {
             // Calculate using manual price: outstanding shares * manual price
-            config.debug('💰 Calculating current value with manual price:', this.currentPrice);
             const totalValue = entries
                 .reduce((sum, entry) => sum + (entry.outstandingQuantity * this.currentPrice), 0);
             config.debug('💰 Manual price calculation result:', totalValue);
@@ -466,10 +465,8 @@ class PortfolioCalculator {
         } else {
             // Calculate using market price from Excel: outstanding shares * market price
             // This ensures we always use transaction currency, not display currency
-            config.debug('💰 Calculating current value with market price from transaction currency');
             const totalValue = entries
                 .reduce((sum, entry) => sum + (entry.outstandingQuantity * entry.marketPrice), 0);
-            config.debug('💰 Market price calculation result:', totalValue);
             return totalValue;
         }
     }
@@ -890,7 +887,6 @@ class PortfolioCalculator {
      */
     async calculateXIRRUserInvestment(entries, totalValue) {
         try {
-            config.debug('💹 XIRR User Investment: Starting calculation using direct Excel data');
             
             const cashFlows = [];
             
@@ -909,7 +905,6 @@ class PortfolioCalculator {
                             type: 'user_investment',
                             description: `User purchase: ${entry.allocatedQuantity} shares`
                         });
-                        config.debug(`💹 User investment: ${entry.allocationDate} = ${amount.toFixed(2)}`);
                     }
                 }
             });
@@ -945,44 +940,19 @@ class PortfolioCalculator {
                     type: 'current_value',
                     description: 'Current portfolio value'
                 });
-                config.debug(`💹 Current value: today = +${currentPortfolioValue.toFixed(2)}`);
             }
             
             // Sort by date
             cashFlows.sort((a, b) => a.date - b.date);
             
             if (cashFlows.length < 2) {
-                config.debug('💹 XIRR User Investment: Insufficient cash flows');
                 return 0;
             }
             
-            // Debug output
-            config.debug('💹 XIRR User Investment: Excel-based cash flows:', cashFlows.map(cf => ({
-                date: cf.date.toISOString().split('T')[0],
-                amount: cf.amount.toFixed(2),
-                type: cf.type,
-                description: cf.description
-            })));
-            
-            // Calculate expected simple return for comparison
-            const totalInvestments = cashFlows.filter(cf => cf.amount < 0).reduce((sum, cf) => sum + Math.abs(cf.amount), 0);
-            const totalReturns = cashFlows.filter(cf => cf.amount > 0).reduce((sum, cf) => sum + cf.amount, 0);
-            const simpleReturn = totalInvestments > 0 ? ((totalReturns / totalInvestments) - 1) * 100 : 0;
-            const timeSpanDays = (cashFlows[cashFlows.length - 1].date - cashFlows[0].date) / (24 * 60 * 60 * 1000);
-            const timeSpanYears = timeSpanDays / 365.25;
-            
-            config.debug('💹 XIRR User Investment: Return analysis:', {
-                totalInvestments: totalInvestments.toFixed(2),
-                totalReturns: totalReturns.toFixed(2),
-                simpleReturn: simpleReturn.toFixed(2) + '%',
-                timeSpanDays: Math.round(timeSpanDays),
-                timeSpanYears: timeSpanYears.toFixed(2),
-                expectedAnnualReturn: timeSpanYears > 0 ? (simpleReturn / timeSpanYears).toFixed(2) + '%' : 'N/A'
-            });
             
             return this.calculateXIRRFromCashFlows(cashFlows);
         } catch (error) {
-            config.warn('💹 XIRR User Investment: Error during calculation:', error);
+            config.warn('XIRR User Investment calculation error:', error);
             return 0;
         }
     }
@@ -993,7 +963,6 @@ class PortfolioCalculator {
      */
     async calculateXIRRTotalInvestment(entries, totalValue) {
         try {
-            config.debug('💹 XIRR Total Investment: Starting calculation using direct Excel data');
             
             const cashFlows = [];
             
@@ -1027,7 +996,6 @@ class PortfolioCalculator {
                             description: contributionDescription
                         });
                         
-                        config.debug(`💹 Total investment: ${entry.allocationDate} = ${amount.toFixed(2)} (${entry.contributionType})`);
                     }
                 }
             });
@@ -1048,7 +1016,6 @@ class PortfolioCalculator {
                                 type: 'sale',
                                 description: `Sale: ${Math.abs(transaction.quantity)} shares from ${transaction.plan}`
                             });
-                            config.debug(`💹 Sale: ${transaction.transactionDate} = +${amount.toFixed(2)} (${transaction.plan})`);
                         }
                     }
                 });
@@ -1063,45 +1030,19 @@ class PortfolioCalculator {
                     type: 'current_value',
                     description: 'Current portfolio value'
                 });
-                config.debug(`💹 Current value: today = +${currentPortfolioValue.toFixed(2)}`);
             }
             
             // Sort by date
             cashFlows.sort((a, b) => a.date - b.date);
             
             if (cashFlows.length < 2) {
-                config.debug('💹 XIRR Total Investment: Insufficient cash flows');
                 return 0;
             }
             
-            // Debug output
-            config.debug('💹 XIRR Total Investment: Excel-based cash flows:', cashFlows.map(cf => ({
-                date: cf.date.toISOString().split('T')[0],
-                amount: cf.amount.toFixed(2),
-                type: cf.type,
-                contributionType: cf.contributionType || 'N/A',
-                description: cf.description
-            })));
-            
-            // Calculate expected simple return for comparison
-            const totalInvestments = cashFlows.filter(cf => cf.amount < 0).reduce((sum, cf) => sum + Math.abs(cf.amount), 0);
-            const totalReturns = cashFlows.filter(cf => cf.amount > 0).reduce((sum, cf) => sum + cf.amount, 0);
-            const simpleReturn = totalInvestments > 0 ? ((totalReturns / totalInvestments) - 1) * 100 : 0;
-            const timeSpanDays = (cashFlows[cashFlows.length - 1].date - cashFlows[0].date) / (24 * 60 * 60 * 1000);
-            const timeSpanYears = timeSpanDays / 365.25;
-            
-            config.debug('💹 XIRR Total Investment: Return analysis:', {
-                totalInvestments: totalInvestments.toFixed(2),
-                totalReturns: totalReturns.toFixed(2),
-                simpleReturn: simpleReturn.toFixed(2) + '%',
-                timeSpanDays: Math.round(timeSpanDays),
-                timeSpanYears: timeSpanYears.toFixed(2),
-                expectedAnnualReturn: timeSpanYears > 0 ? (simpleReturn / timeSpanYears).toFixed(2) + '%' : 'N/A'
-            });
             
             return this.calculateXIRRFromCashFlows(cashFlows);
         } catch (error) {
-            config.warn('💹 XIRR Total Investment: Error during calculation:', error);
+            config.warn('XIRR Total Investment calculation error:', error);
             return 0;
         }
     }
@@ -1115,22 +1056,15 @@ class PortfolioCalculator {
         const tolerance = 1e-6;
         const maxIterations = 100;
         
-        config.debug('💹 XIRR Newton-Raphson starting:', {
-            initialGuess: rate * 100,
-            tolerance,
-            maxIterations
-        });
         
         for (let i = 0; i < maxIterations; i++) {
             const { npv, derivative } = this.calculateNPVAndDerivative(cashFlows, rate);
             
             if (Math.abs(npv) < tolerance) {
-                config.debug(`💹 XIRR Converged at iteration ${i}:`, (rate * 100).toFixed(2) + '%');
                 return rate * 100; // Convert to percentage
             }
             
             if (Math.abs(derivative) < tolerance) {
-                config.debug(`💹 XIRR Derivative too small at iteration ${i}, breaking`);
                 break; // Avoid division by zero
             }
             
@@ -1144,7 +1078,6 @@ class PortfolioCalculator {
         
         // If Newton-Raphson didn't converge, try a fallback calculation
         const fallbackRate = this.calculateFallbackXIRR(cashFlows);
-        config.debug('💹 XIRR Fallback result:', fallbackRate.toFixed(2) + '%');
         
         return isNaN(fallbackRate) ? 0 : fallbackRate;
     }

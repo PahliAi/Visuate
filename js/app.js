@@ -262,6 +262,26 @@ class EquateApp {
     }
 
     /**
+     * Handle file selection display
+     */
+    handleFileSelect(input, zoneId) {
+        const zone = document.getElementById(zoneId);
+        const infoDiv = document.getElementById(zoneId.replace('Zone', 'Info'));
+        
+        if (input.files.length > 0) {
+            const file = input.files[0];
+            zone.classList.add('file-selected');
+            infoDiv.innerHTML = `✓ ${file.name} (${(file.size / 1024 / 1024).toFixed(2)} MB)`;
+            infoDiv.classList.add('show');
+        } else {
+            zone.classList.remove('file-selected');
+            infoDiv.classList.remove('show');
+        }
+        
+        this.checkFilesReady();
+    }
+
+    /**
      * Set up drag and drop functionality
      */
     setupDragAndDrop() {
@@ -548,11 +568,11 @@ class EquateApp {
 
             // Check if we have files to parse or should use cached data
             const portfolioFile = this.elements.portfolioInput.files[0];
+            let transactionFile = this.elements.transactionsInput.files[0] || null;
             
-            if (portfolioFile) {
+            if (portfolioFile || transactionFile) {
                 // Parse uploaded files (new upload) - CACHE-AWARE ANALYZER APPROACH
                 config.debug('🚨 TAKING NEW UPLOAD PATH - using FileAnalyzer for unified analysis');
-                let transactionFile = this.elements.transactionsInput.files[0] || null;
                 const originalTransactionFile = transactionFile; // Remember original state for UI clearing
 
                 // Get cached data for FileAnalyzer to handle all validation
@@ -612,8 +632,15 @@ class EquateApp {
 
                 // Step 4: Parse files with analysis context
                 config.debug('📄 Parsing files with pre-analysis context...');
-                portfolioData = await fileParser.parsePortfolioFile(portfolioFile, analysisResult);
-                config.debug('Portfolio data parsed:', portfolioData);
+                if (portfolioFile) {
+                    portfolioData = await fileParser.parsePortfolioFile(portfolioFile, analysisResult);
+                    config.debug('Portfolio data parsed:', portfolioData);
+                } else {
+                    // Use cached portfolio data
+                    const cachedData = await equateDB.getPortfolioData();
+                    portfolioData = cachedData.portfolioData;
+                    config.debug('Using cached portfolio data:', portfolioData);
+                }
 
                 // Parse transaction data if compatible
                 if (transactionFile && analysisResult.errors.length === 0) {
@@ -810,18 +837,9 @@ class EquateApp {
     getCurrencySymbol(currency) {
         if (!currency) return '';
         
-        config.debug('🔍 getCurrencySymbol called with:', currency, typeof currency);
-        
         if (typeof CurrencyMappings !== 'undefined') {
             const mappings = new CurrencyMappings();
             const currencyInfo = mappings.getByCode(currency);
-            
-            config.debug('🔍 Currency lookup result:', {
-                currency,
-                found: !!currencyInfo,
-                symbol: currencyInfo?.symbol,
-                name: currencyInfo?.name
-            });
             
             if (currencyInfo && currencyInfo.symbol) {
                 return currencyInfo.symbol;

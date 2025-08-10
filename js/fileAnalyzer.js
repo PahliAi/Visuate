@@ -62,9 +62,25 @@ class FileAnalyzer {
                 }
             }
 
-            // Step 2: Analyze portfolio file (required)
-            config.debug('📄 Analyzing portfolio file:', portfolioFile.name);
-            results.portfolio = await this.analyzeFile(portfolioFile, 'portfolio');
+            // Step 2: Analyze portfolio file (if provided) or use cached data
+            if (portfolioFile) {
+                config.debug('📄 Analyzing portfolio file:', portfolioFile.name);
+                results.portfolio = await this.analyzeFile(portfolioFile, 'portfolio');
+            } else if (cachedData && cachedData.portfolioData) {
+                // Use cached portfolio data as the master currency/language source
+                config.debug('📄 Using cached portfolio data as master source');
+                results.portfolio = {
+                    fileName: 'cached-portfolio-data',
+                    fileType: 'portfolio',
+                    language: cachedData.isEnglish ? 'english' : 'other', // Simple fallback for cached data
+                    currency: cachedData.currency,
+                    company: cachedData.company || 'Other',
+                    rawData: null, // Not needed for validation
+                    worksheet: null // Not needed for validation
+                };
+            } else {
+                throw new Error('No portfolio file provided and no cached portfolio data available');
+            }
             
             // Step 3: Analyze transaction file if provided and not rejected
             if (transactionFile) {
