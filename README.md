@@ -59,12 +59,14 @@ Then open: `http://localhost:8000`
 - **Current Portfolio Value** - Today's market value
 - **Total Return** - Your profit/loss amount
 - **Return Percentage** - Your profit/loss as a percentage
-- **Annual Growth (CAGR)** - Compound annual growth rate
+- **Annual Return (XIRR)** - Internal rate of return for your investment and total portfolio
+- **Available Shares** - Shares you can sell (not blocked)
 
 ### Charts and Visualizations
-- **Timeline Chart** - Shows portfolio value growth over time
+- **Timeline Chart** - Shows portfolio value growth over time with stock price trendline (click legend to show/hide individual lines)
 - **Performance Breakdown** - Bar chart showing investment sources and returns  
 - **Investment Distribution** - Pie chart of how your money was invested
+- **Application Flow** - Interactive flowchart showing the complete application workflow
 
 ### Portfolio Details Table
 - **Allocation Date** - When shares were granted
@@ -94,6 +96,7 @@ To see current profit/loss with today's share price:
 - Application automatically detects your file language
 - Supports 13 languages: English, German, Dutch, French, Spanish, Italian, Polish, Turkish, Portuguese, Czech, Romanian, Croatian, Indonesian
 - UI language can be changed using the language selector
+- Language preference is saved and persists across browser sessions
 
 ## Data Privacy & Storage
 
@@ -104,7 +107,7 @@ To see current profit/loss with today's share price:
 
 ### Data Storage  
 - **Browser Cache** - Data stored locally for faster future loading
-- **Persistent Sessions** - Results saved between browser sessions
+- **Persistent Sessions** - Results and preferences saved between browser sessions
 - **Clear Data** - Use "Clear All Data" button to remove stored information
 - **Offline Capable** - Works without internet connection after first load
 
@@ -175,11 +178,13 @@ To see current profit/loss with today's share price:
 
 ### Key Features
 - ✅ Complete privacy (local processing only)
-- ✅ Multi-language support (13 languages)
+- ✅ Multi-language support with persistent preferences (13 languages)
 - ✅ Multi-currency support (25+ currencies)
-- ✅ Interactive charts and visualizations
+- ✅ Interactive charts with stock price trendlines and toggleable visibility
+- ✅ Advanced XIRR calculations for annualized returns
 - ✅ PDF and CSV export capabilities
 - ✅ Manual price override functionality
 - ✅ Automatic data caching and persistence
+- ✅ Interactive application flow diagram
 
 For technical details, see `TECHNICAL_OVERVIEW.md`

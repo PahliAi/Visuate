@@ -539,20 +539,54 @@ const TRANSLATION_DATA = {
     },
     
     annual_growth: {
-        english: "Annual Growth (CAGR)",
-        german: "Jährliches Wachstum (CAGR)",
-        dutch: "Jaarlijkse groei (CAGR)",
-        french: "Croissance annuelle (TCAC)",
-        spanish: "Crecimiento anual (CAGR)",
-        italian: "Crescita annuale (CAGR)",
-        polish: "Wzrost roczny (CAGR)",
-        turkish: "Yıllık büyüme (CAGR)",
-        portuguese: "Crescimento anual (CAGR)",
-        czech: "Roční růst (CAGR)",
-        romanian: "Creștere anuală (CAGR)",
-        croatian: "Godišnji rast (CAGR)",
-        indonesian: "Pertumbuhan Tahunan (CAGR)",
-        chinese: "年增长率 (CAGR)"
+        english: "Annual Return (XIRR)",
+        german: "Jährliche Rendite (XIRR)",
+        dutch: "Jaarlijks rendement (XIRR)",
+        french: "Rendement annuel (XIRR)",
+        spanish: "Rendimiento anual (XIRR)",
+        italian: "Rendimento annuale (XIRR)",
+        polish: "Zwrot roczny (XIRR)",
+        turkish: "Yıllık getiri (XIRR)",
+        portuguese: "Retorno anual (XIRR)",
+        czech: "Roční výnos (XIRR)",
+        romanian: "Randament anual (XIRR)",
+        croatian: "Godišnji povrat (XIRR)",
+        indonesian: "Pengembalian Tahunan (XIRR)",
+        chinese: "年收益率 (XIRR)"
+    },
+
+    xirr_user_investment: {
+        english: "Annual Return (XIRR) on Your Investment",
+        german: "Jährliche Rendite (XIRR) auf Ihre Investition",
+        dutch: "Jaarlijks rendement (XIRR) op uw investering",
+        french: "Rendement annuel (XIRR) sur votre investissement",
+        spanish: "Rendimiento anual (XIRR) de su inversión",
+        italian: "Rendimento annuale (XIRR) sul tuo investimento",
+        polish: "Roczny zwrot (XIRR) z Twojej inwestycji",
+        turkish: "Yatırımınız için yıllık getiri (XIRR)",
+        portuguese: "Retorno anual (XIRR) do seu investimento",
+        czech: "Roční výnos (XIRR) z vaší investice",
+        romanian: "Randament anual (XIRR) pe investiția dvs.",
+        croatian: "Godišnji povrat (XIRR) na vašu investiciju",
+        indonesian: "Pengembalian Tahunan (XIRR) atas Investasi Anda",
+        chinese: "您投资的年收益率 (XIRR)"
+    },
+
+    xirr_total_investment: {
+        english: "Annual Return (XIRR) on Total Investment",
+        german: "Jährliche Rendite (XIRR) auf Gesamtinvestition",
+        dutch: "Jaarlijks rendement (XIRR) op totale investering",
+        french: "Rendement annuel (XIRR) sur l'investissement total",
+        spanish: "Rendimiento anual (XIRR) de la inversión total",
+        italian: "Rendimento annuale (XIRR) sull'investimento totale",
+        polish: "Roczny zwrot (XIRR) z całkowitej inwestycji",
+        turkish: "Toplam yatırım için yıllık getiri (XIRR)",
+        portuguese: "Retorno anual (XIRR) do investimento total",
+        czech: "Roční výnos (XIRR) z celkové investice",
+        romanian: "Randament anual (XIRR) pe investiția totală",
+        croatian: "Godišnji povrat (XIRR) na ukupnu investiciju",
+        indonesian: "Pengembalian Tahunan (XIRR) atas Total Investasi",
+        chinese: "总投资的年收益率 (XIRR)"
     },
     
     available_shares_label: {

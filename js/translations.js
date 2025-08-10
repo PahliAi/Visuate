@@ -273,11 +273,6 @@ class TranslationManager {
             this.currentLanguage = language;
             config.debug('🌐 Language set to:', language);
             
-            // Save preference
-            if (typeof equateDB !== 'undefined') {
-                equateDB.savePreference('selected_language', language);
-            }
-            
             // Update UI elements
             this.updateUILanguage();
         } else {
@@ -355,20 +350,24 @@ class TranslationManager {
      */
     updateMetricLabels() {
         const metricUpdates = [
+            // Row 1: Your Investment, Company Match, Free Shares, Dividend Income, Total Investment
             { selector: '.metric-card h3', key: 'your_investment_title', index: 0 },
             { selector: '.metric-card h3', key: 'company_match_label', index: 1 },
             { selector: '.metric-card h3', key: 'free_shares_label', index: 2 },
             { selector: '.metric-card h3', key: 'dividend_income', index: 3 },
             { selector: '.metric-card h3', key: 'total_investment', index: 4 },
-            { selector: '.metric-card h3', key: 'current_portfolio', index: 5 },
-            { selector: '.metric-card h3', key: 'total_sold', index: 6 },
-            { selector: '.metric-card h3', key: 'total_value', index: 7 },
-            { selector: '.metric-card h3', key: 'return_on_investment', index: 8 },
+            // Row 2: Return on Your Investment, Current Portfolio, Total Sold, Total Value, Return on Total Investment
+            { selector: '.metric-card h3', key: 'return_on_investment', index: 5 },
+            { selector: '.metric-card h3', key: 'current_portfolio', index: 6 },
+            { selector: '.metric-card h3', key: 'total_sold', index: 7 },
+            { selector: '.metric-card h3', key: 'total_value', index: 8 },
             { selector: '.metric-card h3', key: 'return_on_total_investment', index: 9 },
-            { selector: '.metric-card h3', key: 'return_percentage_on_investment', index: 10 }, // Return % on Your Investment 
-            { selector: '.metric-card h3', key: 'return_percentage_on_total_investment', index: 11 }, // Return % on Total Investment
-            { selector: '.metric-card h3', key: 'annual_growth', index: 12 },
-            { selector: '.metric-card h3', key: 'available_shares_label', index: 13 }
+            // Row 3: Return % on Your Investment, Annual Return XIRR on Your Investment, Available Shares, Annual Return XIRR on Total Investment, Return % on Total Investment
+            { selector: '.metric-card h3', key: 'return_percentage_on_investment', index: 10 },
+            { selector: '.metric-card h3', key: 'xirr_user_investment', index: 11 },
+            { selector: '.metric-card h3', key: 'available_shares_label', index: 12 },
+            { selector: '.metric-card h3', key: 'xirr_total_investment', index: 13 },
+            { selector: '.metric-card h3', key: 'return_percentage_on_total_investment', index: 14 }
         ];
 
         metricUpdates.forEach(update => {

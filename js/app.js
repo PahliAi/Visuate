@@ -160,6 +160,7 @@ class EquateApp {
                 // Theme and Format
                 themeSelect: document.getElementById('theme'),
                 formatSelect: document.getElementById('formatSelect'),
+                languageSelect: document.getElementById('languageSelect'),
                 
                 // Price controls (moved to Results tab)
                 manualPrice: document.getElementById('manualPriceInput'),
@@ -193,8 +194,9 @@ class EquateApp {
                 returnOnTotalInvestment: document.getElementById('returnOnTotalInvestment'),
                 returnPercentage: document.getElementById('returnPercentage'),
                 returnPercentageOnTotalInvestment: document.getElementById('returnPercentageOnTotalInvestment'),
-                annualGrowth: document.getElementById('annualGrowth'),
                 availableShares: document.getElementById('availableShares'),
+                xirrUserInvestment: document.getElementById('xirrUserInvestment'),
+                xirrTotalInvestment: document.getElementById('xirrTotalInvestment'),
                 
                 // Chart
                 chartPlaceholder: document.getElementById('chartPlaceholder'),
@@ -225,6 +227,13 @@ class EquateApp {
         if (this.elements.themeSelect) {
             this.elements.themeSelect.addEventListener('change', (e) => {
                 this.switchTheme(e.target.value);
+            });
+        }
+
+        // Language switching
+        if (this.elements.languageSelect) {
+            this.elements.languageSelect.addEventListener('change', (e) => {
+                this.setLanguagePreference(e.target.value);
             });
         }
 
@@ -684,7 +693,7 @@ class EquateApp {
             }
 
             // Calculate metrics (after AsOfDate is saved to IndexedDB)
-            this.currentCalculations = portfolioCalculator.calculate();
+            this.currentCalculations = await portfolioCalculator.calculate();
             config.debug('Calculations completed:', this.currentCalculations);
 
             // Update UI
@@ -723,18 +732,7 @@ class EquateApp {
         // Set UI language (user can still override via language selector)
         if (unifiedAnalysis.language !== translationManager.getCurrentLanguage()) {
             config.debug('🌐 Auto-switching UI language to:', unifiedAnalysis.language);
-            translationManager.currentLanguage = unifiedAnalysis.language;
-            
-            // Update language selector
-            const languageSelect = document.getElementById('languageSelect');
-            if (languageSelect) {
-                languageSelect.value = unifiedAnalysis.language;
-            }
-            
-            // Save preference
-            if (typeof equateDB !== 'undefined') {
-                equateDB.savePreference('selected_language', unifiedAnalysis.language);
-            }
+            this.setLanguagePreference(unifiedAnalysis.language);
         }
         
         // Store detected currency for display formatting
@@ -888,7 +886,7 @@ class EquateApp {
             }
 
             // Calculate metrics (after AsOfDate is saved to IndexedDB)
-            this.currentCalculations = portfolioCalculator.calculate();
+            this.currentCalculations = await portfolioCalculator.calculate();
 
             // Update UI
             this.displayResults();
@@ -938,7 +936,7 @@ class EquateApp {
             config.debug('🎯 Setting manual price on calculator');
             await portfolioCalculator.setManualPrice(price);
             config.debug('🎯 Calculating with new manual price...');
-            this.currentCalculations = portfolioCalculator.calculate(); // Use calculate() instead of recalculate()
+            this.currentCalculations = await portfolioCalculator.calculate(); // Use calculate() instead of recalculate()
             config.debug('🎯 New calculations with manual price:', this.currentCalculations);
             
             // Update UI components
@@ -998,6 +996,27 @@ class EquateApp {
     }
 
     /**
+     * Diagnostic function to check element mappings
+     */
+    diagnoseElements() {
+        console.log('🔍 DIAGNOSTIC: Full Element to Card Mapping');
+        console.log('🔍 HTML Source check:', document.documentElement.outerHTML.includes('TEST MARKER 123') ? '✅ Updated HTML loaded' : '❌ Old HTML still cached');
+        
+        const elements = ['userInvestment', 'companyMatch', 'freeShares', 'dividendIncome', 'totalInvestment', 
+                         'totalReturn', 'currentValue', 'totalSold', 'totalValue', 'returnOnTotalInvestment',
+                         'returnPercentage', 'xirrUserInvestment', 'availableShares', 'returnPercentageOnTotalInvestment', 'xirrTotalInvestment'];
+        elements.forEach(elementId => {
+            const element = document.getElementById(elementId);
+            if (element) {
+                const cardTitle = element.parentElement?.querySelector('h3')?.textContent;
+                console.log(`${elementId} -> "${cardTitle}" (Value: ${element.textContent})`);
+            } else {
+                console.log(`${elementId} -> NOT FOUND`);
+            }
+        });
+    }
+
+    /**
      * Update metrics display
      */
     updateMetricsDisplay() {
@@ -1032,7 +1051,13 @@ class EquateApp {
         this.elements.returnPercentageOnTotalInvestment.textContent = this.formatPercentage(returnPercentageOnTotalInvestment, decimals);
         this.elements.returnPercentageOnTotalInvestment.className = `metric-value ${returnPercentageOnTotalInvestment >= 0 ? 'positive' : 'negative'}`;
         
-        this.elements.annualGrowth.textContent = this.formatPercentage(this.currentCalculations.annualGrowth, decimals);
+        // XIRR metrics with styling
+        this.elements.xirrUserInvestment.textContent = this.formatPercentage(this.currentCalculations.xirrUserInvestment, decimals);
+        this.elements.xirrUserInvestment.className = `metric-value ${this.currentCalculations.xirrUserInvestment >= 0 ? 'positive' : 'negative'}`;
+        
+        this.elements.xirrTotalInvestment.textContent = this.formatPercentage(this.currentCalculations.xirrTotalInvestment, decimals);
+        this.elements.xirrTotalInvestment.className = `metric-value ${this.currentCalculations.xirrTotalInvestment >= 0 ? 'positive' : 'negative'}`;
+        
         this.elements.availableShares.textContent = this.currentCalculations.availableShares.toString();
     }
 
@@ -1343,8 +1368,27 @@ class EquateApp {
             const numberFormat = await equateDB.getPreference('numberFormat') || 'us';
             this.elements.formatSelect.value = numberFormat;
             this.setNumberFormat(numberFormat);
+
+            const language = await equateDB.getPreference('language') || 'english';
+            this.elements.languageSelect.value = language;
+            translationManager.setLanguage(language);
+            config.debug('🌐 Restored language preference:', language);
         } catch (error) {
             config.error('Error loading preferences:', error);
+        }
+    }
+
+    /**
+     * Set language and save preference
+     */
+    setLanguagePreference(language) {
+        try {
+            this.elements.languageSelect.value = language;
+            translationManager.setLanguage(language);
+            equateDB.savePreference('language', language);
+            config.debug('🌐 Language preference saved:', language);
+        } catch (error) {
+            config.error('Error setting language preference:', error);
         }
     }
 
@@ -1666,10 +1710,6 @@ class EquateApp {
             // Layout configuration - dual Y-axis (left: portfolio values, right: stock price)
             const layout = {
                 separators: this.numberFormat === 'eu' ? ',.' : '.,',
-                title: {
-                    text: translationManager.t('portfolio_timeline_title'),
-                    font: { size: 18 }
-                },
                 xaxis: {
                     title: translationManager.t('chart_date_axis_label'),
                     type: 'date',

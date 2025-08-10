@@ -32,7 +32,7 @@
                         <label for="languageSelect">Language:</label>
                     </div>
                     <div class="grid-item language-dropdown" id="languageSelector">
-                        <select id="languageSelect" onchange="translationManager.setLanguage(this.value)">
+                        <select id="languageSelect">
                             <option value="english">English</option>
                             <option value="german">Deutsch</option>
                             <option value="dutch">Nederlands</option>
@@ -88,7 +88,7 @@
                         <div class="step-number">1</div>
                         <div class="step-content">
                             <h3>Log in to the EquatePlus website</h3>
-                            <p>Access your EquatePlus account through their website and navigate to your account menu.</p>
+                            <p>Access your EquatePlus account via <a href="https://www.equateplus.com/" target="_blank" style="text-decoration: none;">https://www.equateplus.com/</a> and navigate to your account menu.</p>
                             <div class="help-image">
                                 <img src="Transaction&Preferences.png" alt="EquatePlus account menu navigation" style="max-width: 100%; border-radius: 6px; border: 1px solid var(--border-color);">
                             </div>
@@ -200,7 +200,7 @@
 
                         <!-- Metrics Grid -->
                         <div class="metrics-section">
-                            <!-- First Row: Investment Details -->
+                            <!-- Row 1: Your Investment, Company Match, Free Shares, Dividend Income, Total Investment -->
                             <div class="metric-card highlight-investment">
                                 <h3>Your Investment</h3>
                                 <div class="metric-value" id="userInvestment">-</div>
@@ -217,11 +217,15 @@
                                 <h3>Dividend Income</h3>
                                 <div class="metric-value" id="dividendIncome">-</div>
                             </div>
-                            
-                            <!-- Second Row: Portfolio Performance -->
                             <div class="metric-card highlight-total-investment">
                                 <h3>Total Investment</h3>
                                 <div class="metric-value" id="totalInvestment">-</div>
+                            </div>
+                            
+                            <!-- Row 2: Return on Your Investment, Current Portfolio, Total Sold, Total Value, Return on Total Investment -->
+                            <div class="metric-card highlight-investment">
+                                <h3>Return on Your Investment</h3>
+                                <div class="metric-value" id="totalReturn">-</div>
                             </div>
                             <div class="metric-card">
                                 <h3>Current Portfolio</h3>
@@ -236,33 +240,31 @@
                                 <h3>Total Value</h3>
                                 <div class="metric-value" id="totalValue">-</div>
                             </div>
-                            
-                            <!-- Third Row: Returns -->
-                            <div class="metric-card highlight-investment">
-                                <h3>Return on Your Investment</h3>
-                                <div class="metric-value" id="totalReturn">-</div>
-                            </div>
                             <div class="metric-card highlight-total-investment">
                                 <h3>Return on Total Investment</h3>
                                 <div class="metric-value" id="returnOnTotalInvestment">-</div>
                             </div>
+                            
+                            <!-- Row 3: Return % on Your Investment, Annual Return XIRR on Your Investment, Available Shares, Annual Return XIRR on Total Investment, Return % on Total Investment -->
                             <div class="metric-card highlight-investment">
                                 <h3>Return % on Your Investment</h3>
                                 <div class="metric-value" id="returnPercentage">0.00%</div>
                             </div>
-                            <div class="metric-card highlight-total-investment">
-                                <h3>Return % on Total Investment</h3>
-                                <div class="metric-value" id="returnPercentageOnTotalInvestment">0.00%</div>
-                            </div>
-                            
-                            <!-- Fourth Row: Additional Metrics -->
-                            <div class="metric-card">
-                                <h3>Annual Growth (CAGR)</h3>
-                                <div class="metric-value" id="annualGrowth">0.00%</div>
+                            <div class="metric-card xirr-user-investment">
+                                <h3>Annual Return (XIRR) on Your Investment</h3>
+                                <div class="metric-value" id="xirrUserInvestment">0.00%</div>
                             </div>
                             <div class="metric-card">
                                 <h3>Available Shares</h3>
                                 <div class="metric-value" id="availableShares">0</div>
+                            </div>
+                            <div class="metric-card xirr-total-investment">
+                                <h3>Annual Return (XIRR) on Total Investment</h3>
+                                <div class="metric-value" id="xirrTotalInvestment">0.00%</div>
+                            </div>
+                            <div class="metric-card highlight-total-investment">
+                                <h3>Return % on Total Investment</h3>
+                                <div class="metric-value" id="returnPercentageOnTotalInvestment">0.00%</div>
                             </div>
                         </div>
 

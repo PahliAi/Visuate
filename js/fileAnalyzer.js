@@ -344,7 +344,7 @@ class FileAnalyzer {
                 }
             } else if (cachedData.portfolioData) {
                 // Use cached portfolio as master
-                masterCurrency = cachedData.portfolioData.currency;
+                masterCurrency = cachedData.currency;  // Currency is stored at top level of cached data
                 config.debug(`💰 Using cached portfolio currency as master: ${masterCurrency}`);
             }
 

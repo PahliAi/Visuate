@@ -286,7 +286,7 @@ class PortfolioCalculator {
      * @returns {Object} Complete portfolio calculations object with all metrics
      * @throws {Error} If portfolio data or current price is missing
      */
-    calculate() {
+    async calculate() {
         if (!this.portfolioData || !this.currentPrice) {
             throw new Error('Missing portfolio data or current price');
         }
@@ -314,9 +314,10 @@ class PortfolioCalculator {
         const returnPercentage = userInvestment > 0 ? ((totalReturn / userInvestment) * 100) : 0; // RETURN % ON YOUR INVESTMENT
         const returnOnTotalInvestment = this.calculateReturnOnTotalInvestment(totalValue, totalInvestment);
         const returnPercentageOnTotalInvestment = this.calculateReturnPercentageOnTotalInvestment(totalValue, totalInvestment);
-        const annualGrowth = this.calculateCAGR(entries, totalValue);
         const availableShares = this.calculateAvailableShares(entries);
         const blockedShares = this.calculateBlockedShares(entries);
+        const xirrUserInvestment = await this.calculateXIRRUserInvestment(entries, totalValue);
+        const xirrTotalInvestment = await this.calculateXIRRTotalInvestment(entries, totalValue);
 
         this.calculations = {
             userInvestment,
@@ -333,8 +334,10 @@ class PortfolioCalculator {
             returnPercentage, // RETURN % ON YOUR INVESTMENT
             returnOnTotalInvestment, // RETURN ON TOTAL INVESTMENT
             returnPercentageOnTotalInvestment, // RETURN % ON TOTAL INVESTMENT
-            annualGrowth,
-            monthlyReturn: annualGrowth / 12,
+            xirrUserInvestment, // XIRR ON YOUR INVESTMENT
+            xirrTotalInvestment, // XIRR ON TOTAL INVESTMENT
+            annualGrowth: xirrUserInvestment, // Legacy compatibility
+            monthlyReturn: xirrUserInvestment / 12,
             availableShares,
             blockedShares,
             totalShares: availableShares + blockedShares.total,
@@ -352,11 +355,11 @@ class PortfolioCalculator {
     /**
      * Recalculate with current settings
      */
-    recalculate() {
+    async recalculate() {
         config.debug('🔄 Recalculate called, has portfolio data:', !!this.portfolioData);
         if (this.portfolioData) {
             config.debug('🔄 Calling calculate() with current price:', this.currentPrice, 'source:', this.priceSource);
-            return this.calculate();
+            return await this.calculate();
         }
         return null;
     }
@@ -445,7 +448,7 @@ class PortfolioCalculator {
         return this.transactionData.entries
             .filter(entry => this.isSellOrTransferOrderType(entry.orderType))
             .filter(entry => entry.status === 'Executed')
-            .reduce((sum, entry) => sum + (entry.netProceeds || 0), 0);
+            .reduce((sum, entry) => sum + (Math.abs(entry.quantity) * (entry.executionPrice || 0)), 0);
     }
 
     /**
@@ -684,7 +687,7 @@ class PortfolioCalculator {
                         shareChange -= quantitySold;
                         
                         // Add sale proceeds to cumulative total
-                        const saleAmount = transaction.netProceeds || (quantitySold * (transaction.executionPrice || 0));
+                        const saleAmount = quantitySold * (transaction.executionPrice || 0);
                         saleProceedsChange += saleAmount;
                         
                         const currencySymbol = this.getCurrencySymbol(this.currency);
@@ -878,6 +881,314 @@ class PortfolioCalculator {
         this.currentPrice = null;
         this.priceSource = 'historical';
         this.calculations = null;
+    }
+
+
+    /**
+     * Calculate XIRR based only on user investment (excluding company contributions)
+     * Uses direct Excel data for consistency
+     */
+    async calculateXIRRUserInvestment(entries, totalValue) {
+        try {
+            config.debug('💹 XIRR User Investment: Starting calculation using direct Excel data');
+            
+            const cashFlows = [];
+            
+            // Add all user purchases as negative cash flows (from portfolio Excel)
+            entries.forEach(entry => {
+                if (entry.allocationDate && 
+                    entry.contributionType === 'Purchase' && 
+                    entry.plan === 'Employee Share Purchase Plan') {
+                    
+                    const date = this.parseUTCDate(entry.allocationDate);
+                    if (date) {
+                        const amount = -(entry.costBasis * entry.allocatedQuantity);
+                        cashFlows.push({
+                            date: date,
+                            amount: amount,
+                            type: 'user_investment',
+                            description: `User purchase: ${entry.allocatedQuantity} shares`
+                        });
+                        config.debug(`💹 User investment: ${entry.allocationDate} = ${amount.toFixed(2)}`);
+                    }
+                }
+            });
+            
+            // Add user sales from transaction file (if available)
+            if (this.transactionData && this.transactionData.entries) {
+                this.transactionData.entries.forEach(transaction => {
+                    if (transaction.transactionDate && 
+                        this.isSellOrTransferOrderType(transaction.orderType) &&
+                        transaction.status === 'Executed') {
+                        
+                        const date = this.parseUTCDate(transaction.transactionDate);
+                        if (date) {
+                            const amount = Math.abs(transaction.quantity) * (transaction.executionPrice || 0); // Positive for sales
+                            cashFlows.push({
+                                date: date,
+                                amount: amount,
+                                type: 'user_sale',
+                                description: `User sale: ${Math.abs(transaction.quantity)} shares`
+                            });
+                            config.debug(`💹 User sale: ${transaction.transactionDate} = +${amount.toFixed(2)}`);
+                        }
+                    }
+                });
+            }
+            
+            // Add current portfolio value as final cash flow
+            const currentPortfolioValue = this.calculateCurrentValue(entries);
+            if (currentPortfolioValue > 0) {
+                cashFlows.push({
+                    date: new Date(),
+                    amount: currentPortfolioValue,
+                    type: 'current_value',
+                    description: 'Current portfolio value'
+                });
+                config.debug(`💹 Current value: today = +${currentPortfolioValue.toFixed(2)}`);
+            }
+            
+            // Sort by date
+            cashFlows.sort((a, b) => a.date - b.date);
+            
+            if (cashFlows.length < 2) {
+                config.debug('💹 XIRR User Investment: Insufficient cash flows');
+                return 0;
+            }
+            
+            // Debug output
+            config.debug('💹 XIRR User Investment: Excel-based cash flows:', cashFlows.map(cf => ({
+                date: cf.date.toISOString().split('T')[0],
+                amount: cf.amount.toFixed(2),
+                type: cf.type,
+                description: cf.description
+            })));
+            
+            // Calculate expected simple return for comparison
+            const totalInvestments = cashFlows.filter(cf => cf.amount < 0).reduce((sum, cf) => sum + Math.abs(cf.amount), 0);
+            const totalReturns = cashFlows.filter(cf => cf.amount > 0).reduce((sum, cf) => sum + cf.amount, 0);
+            const simpleReturn = totalInvestments > 0 ? ((totalReturns / totalInvestments) - 1) * 100 : 0;
+            const timeSpanDays = (cashFlows[cashFlows.length - 1].date - cashFlows[0].date) / (24 * 60 * 60 * 1000);
+            const timeSpanYears = timeSpanDays / 365.25;
+            
+            config.debug('💹 XIRR User Investment: Return analysis:', {
+                totalInvestments: totalInvestments.toFixed(2),
+                totalReturns: totalReturns.toFixed(2),
+                simpleReturn: simpleReturn.toFixed(2) + '%',
+                timeSpanDays: Math.round(timeSpanDays),
+                timeSpanYears: timeSpanYears.toFixed(2),
+                expectedAnnualReturn: timeSpanYears > 0 ? (simpleReturn / timeSpanYears).toFixed(2) + '%' : 'N/A'
+            });
+            
+            return this.calculateXIRRFromCashFlows(cashFlows);
+        } catch (error) {
+            config.warn('💹 XIRR User Investment: Error during calculation:', error);
+            return 0;
+        }
+    }
+
+    /**
+     * Calculate XIRR based on total investment (including all contributions)
+     * Uses direct Excel data for all contribution types
+     */
+    async calculateXIRRTotalInvestment(entries, totalValue) {
+        try {
+            config.debug('💹 XIRR Total Investment: Starting calculation using direct Excel data');
+            
+            const cashFlows = [];
+            
+            // Add ALL contributions as negative cash flows (from portfolio Excel)
+            entries.forEach(entry => {
+                if (entry.allocationDate && entry.costBasis && entry.allocatedQuantity) {
+                    const date = this.parseUTCDate(entry.allocationDate);
+                    if (date) {
+                        const amount = -(entry.costBasis * entry.allocatedQuantity);
+                        let contributionDescription = '';
+                        
+                        // Categorize contribution type
+                        if (entry.contributionType === 'Purchase' && entry.plan === 'Employee Share Purchase Plan') {
+                            contributionDescription = `User purchase: ${entry.allocatedQuantity} shares`;
+                        } else if (entry.contributionType === 'Company match') {
+                            contributionDescription = `Company match: ${entry.allocatedQuantity} shares`;
+                        } else if (entry.contributionType === 'Award') {
+                            contributionDescription = `Free shares award: ${entry.allocatedQuantity} shares`;
+                        } else if (entry.plan === 'Allianz Dividend Reinvestment') {
+                            contributionDescription = `Dividend reinvestment: ${entry.allocatedQuantity} shares`;
+                        } else {
+                            contributionDescription = `${entry.contributionType} (${entry.plan}): ${entry.allocatedQuantity} shares`;
+                        }
+                        
+                        cashFlows.push({
+                            date: date,
+                            amount: amount,
+                            type: 'total_investment',
+                            contributionType: entry.contributionType,
+                            plan: entry.plan,
+                            description: contributionDescription
+                        });
+                        
+                        config.debug(`💹 Total investment: ${entry.allocationDate} = ${amount.toFixed(2)} (${entry.contributionType})`);
+                    }
+                }
+            });
+            
+            // Add ALL sales from transaction file (if available)
+            if (this.transactionData && this.transactionData.entries) {
+                this.transactionData.entries.forEach(transaction => {
+                    if (transaction.transactionDate && 
+                        this.isSellOrTransferOrderType(transaction.orderType) &&
+                        transaction.status === 'Executed') {
+                        
+                        const date = this.parseUTCDate(transaction.transactionDate);
+                        if (date) {
+                            const amount = Math.abs(transaction.quantity) * (transaction.executionPrice || 0); // Positive for sales
+                            cashFlows.push({
+                                date: date,
+                                amount: amount,
+                                type: 'sale',
+                                description: `Sale: ${Math.abs(transaction.quantity)} shares from ${transaction.plan}`
+                            });
+                            config.debug(`💹 Sale: ${transaction.transactionDate} = +${amount.toFixed(2)} (${transaction.plan})`);
+                        }
+                    }
+                });
+            }
+            
+            // Add current portfolio value as final cash flow
+            const currentPortfolioValue = this.calculateCurrentValue(entries);
+            if (currentPortfolioValue > 0) {
+                cashFlows.push({
+                    date: new Date(),
+                    amount: currentPortfolioValue,
+                    type: 'current_value',
+                    description: 'Current portfolio value'
+                });
+                config.debug(`💹 Current value: today = +${currentPortfolioValue.toFixed(2)}`);
+            }
+            
+            // Sort by date
+            cashFlows.sort((a, b) => a.date - b.date);
+            
+            if (cashFlows.length < 2) {
+                config.debug('💹 XIRR Total Investment: Insufficient cash flows');
+                return 0;
+            }
+            
+            // Debug output
+            config.debug('💹 XIRR Total Investment: Excel-based cash flows:', cashFlows.map(cf => ({
+                date: cf.date.toISOString().split('T')[0],
+                amount: cf.amount.toFixed(2),
+                type: cf.type,
+                contributionType: cf.contributionType || 'N/A',
+                description: cf.description
+            })));
+            
+            // Calculate expected simple return for comparison
+            const totalInvestments = cashFlows.filter(cf => cf.amount < 0).reduce((sum, cf) => sum + Math.abs(cf.amount), 0);
+            const totalReturns = cashFlows.filter(cf => cf.amount > 0).reduce((sum, cf) => sum + cf.amount, 0);
+            const simpleReturn = totalInvestments > 0 ? ((totalReturns / totalInvestments) - 1) * 100 : 0;
+            const timeSpanDays = (cashFlows[cashFlows.length - 1].date - cashFlows[0].date) / (24 * 60 * 60 * 1000);
+            const timeSpanYears = timeSpanDays / 365.25;
+            
+            config.debug('💹 XIRR Total Investment: Return analysis:', {
+                totalInvestments: totalInvestments.toFixed(2),
+                totalReturns: totalReturns.toFixed(2),
+                simpleReturn: simpleReturn.toFixed(2) + '%',
+                timeSpanDays: Math.round(timeSpanDays),
+                timeSpanYears: timeSpanYears.toFixed(2),
+                expectedAnnualReturn: timeSpanYears > 0 ? (simpleReturn / timeSpanYears).toFixed(2) + '%' : 'N/A'
+            });
+            
+            return this.calculateXIRRFromCashFlows(cashFlows);
+        } catch (error) {
+            config.warn('💹 XIRR Total Investment: Error during calculation:', error);
+            return 0;
+        }
+    }
+
+
+    /**
+     * Calculate XIRR using Newton-Raphson method
+     */
+    calculateXIRRFromCashFlows(cashFlows) {
+        let rate = 0.1; // Initial guess: 10%
+        const tolerance = 1e-6;
+        const maxIterations = 100;
+        
+        config.debug('💹 XIRR Newton-Raphson starting:', {
+            initialGuess: rate * 100,
+            tolerance,
+            maxIterations
+        });
+        
+        for (let i = 0; i < maxIterations; i++) {
+            const { npv, derivative } = this.calculateNPVAndDerivative(cashFlows, rate);
+            
+            if (Math.abs(npv) < tolerance) {
+                config.debug(`💹 XIRR Converged at iteration ${i}:`, (rate * 100).toFixed(2) + '%');
+                return rate * 100; // Convert to percentage
+            }
+            
+            if (Math.abs(derivative) < tolerance) {
+                config.debug(`💹 XIRR Derivative too small at iteration ${i}, breaking`);
+                break; // Avoid division by zero
+            }
+            
+            const newRate = rate - (npv / derivative);
+            
+            // Prevent extreme values
+            if (newRate < -0.99) rate = -0.99;
+            else if (newRate > 10) rate = 10;
+            else rate = newRate;
+        }
+        
+        // If Newton-Raphson didn't converge, try a fallback calculation
+        const fallbackRate = this.calculateFallbackXIRR(cashFlows);
+        config.debug('💹 XIRR Fallback result:', fallbackRate.toFixed(2) + '%');
+        
+        return isNaN(fallbackRate) ? 0 : fallbackRate;
+    }
+
+    /**
+     * Calculate NPV and its derivative for Newton-Raphson method
+     */
+    calculateNPVAndDerivative(cashFlows, rate) {
+        const baseDate = cashFlows[0].date;
+        let npv = 0;
+        let derivative = 0;
+        
+        for (const cf of cashFlows) {
+            const years = (cf.date - baseDate) / (365.25 * 24 * 60 * 60 * 1000);
+            const factor = Math.pow(1 + rate, years);
+            
+            npv += cf.amount / factor;
+            derivative -= (cf.amount * years) / (factor * (1 + rate));
+        }
+        
+        return { npv, derivative };
+    }
+
+    /**
+     * Fallback XIRR calculation using simple approximation
+     */
+    calculateFallbackXIRR(cashFlows) {
+        if (cashFlows.length < 2) return 0;
+        
+        const totalInvested = Math.abs(cashFlows.filter(cf => cf.amount < 0).reduce((sum, cf) => sum + cf.amount, 0));
+        const totalReturned = cashFlows.filter(cf => cf.amount > 0).reduce((sum, cf) => sum + cf.amount, 0);
+        
+        if (totalInvested <= 0 || totalReturned <= 0) return 0;
+        
+        const firstDate = cashFlows[0].date;
+        const lastDate = cashFlows[cashFlows.length - 1].date;
+        const years = (lastDate - firstDate) / (365.25 * 24 * 60 * 60 * 1000);
+        
+        if (years <= 0) return 0;
+        
+        // Simple approximation: (Total Return / Total Investment)^(1/years) - 1
+        const approximateXIRR = (Math.pow(totalReturned / totalInvested, 1 / years) - 1) * 100;
+        
+        return approximateXIRR;
     }
 
     /**
