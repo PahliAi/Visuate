@@ -89,70 +89,32 @@ class PortfolioCalculator {
         const marketPrice = this.extractMarketPrice();
         
         if (asOfDate && marketPrice) {
-            // Check if asOfDate is more recent than most current historical price
-            const mostRecentHistoricalDate = (this.historicalPrices && this.historicalPrices.length > 0)
-                ? this.historicalPrices.map(p => p.date).sort().pop()
-                : null;
+            // AsOfDate should only be ADDED to historical data, never used to LIMIT it
+            // Always use safe add/update logic that preserves existing historical data
+            const existingEntry = this.historicalPrices.find(p => p.date === asOfDate);
             
-            if (!mostRecentHistoricalDate || asOfDate > mostRecentHistoricalDate) {
-                config.debug(`📈 AsOfDate ${asOfDate} > most recent historical ${mostRecentHistoricalDate}, OVERWRITING ENTIRE CACHE`);
+            if (!existingEntry) {
+                config.debug(`📈 Portfolio AsOfDate ${asOfDate} (${marketPrice}) not found in historical prices, adding...`);
                 
-                // Add asOfDate to historical prices
+                // Add to in-memory array
                 this.historicalPrices.push({
                     date: asOfDate,
                     price: marketPrice
                 });
                 
-                // OVERWRITE the entire cache with updated historical prices
+                // Save to IndexedDB for persistence across sessions
                 try {
-                    await equateDB.saveHistoricalPrices(this.historicalPrices);
-                    config.debug(`✅ OVERWROTE entire historical prices cache because asOfDate ${asOfDate} > most recent ${mostRecentHistoricalDate}`);
-                    
-                    // Reload historical prices from cache to ensure consistency
-                    const reloadedPrices = await equateDB.getHistoricalPrices();
-                    this.historicalPrices = reloadedPrices;
-                    config.debug(`✅ Reloaded ${reloadedPrices.length} historical prices from cache`);
+                    await equateDB.appendHistoricalPrice(asOfDate, marketPrice);
+                    config.debug(`✅ AsOfDate price saved to IndexedDB permanently`);
                 } catch (error) {
-                    config.error('❌ Failed to overwrite historical prices cache:', error);
+                    config.error('❌ Failed to save AsOfDate to IndexedDB:', error);
                 }
             } else {
-                // AsOfDate is not more recent, handle normally
-                const existingEntry = this.historicalPrices.find(p => p.date === asOfDate);
-                
-                if (!existingEntry) {
-                    config.debug(`📈 Portfolio AsOfDate ${asOfDate} (${marketPrice}) not found in historical prices, adding...`);
-                    
-                    // Add to in-memory array
-                    this.historicalPrices.push({
-                        date: asOfDate,
-                        price: marketPrice
-                    });
-                    
-                    // Save to IndexedDB for persistence across sessions
-                    try {
-                        await equateDB.appendHistoricalPrice(asOfDate, marketPrice);
-                        config.debug(`✅ AsOfDate price saved to IndexedDB permanently`);
-                    } catch (error) {
-                        config.error('❌ Failed to save AsOfDate to IndexedDB:', error);
-                    }
-                } else if (existingEntry.price !== marketPrice) {
-                    config.debug(`📈 Portfolio AsOfDate ${asOfDate} exists but price changed from €${existingEntry.price} to €${marketPrice}, updating...`);
-                    
-                    // Update existing entry
-                    existingEntry.price = marketPrice;
-                    
-                    // Update in IndexedDB
-                    try {
-                        await equateDB.appendHistoricalPrice(asOfDate, marketPrice);
-                        config.debug(`✅ AsOfDate price updated in IndexedDB`);
-                    } catch (error) {
-                        config.error('❌ Failed to update AsOfDate in IndexedDB:', error);
-                    }
-                } else {
-                    config.debug(`📈 Portfolio AsOfDate ${asOfDate} (€${marketPrice}) already exists with same price`);
-                    config.debug(`🔍 DEBUG: existingEntry details:`, existingEntry);
-                    config.debug(`🔍 DEBUG: this.historicalPrices length after asOfDate check:`, this.historicalPrices.length);
-                }
+                // Historical price already exists for AsOfDate - keep the historical price
+                // Historical prices (from hist.xlsx) are authoritative closing prices and should take precedence
+                // over intraday portfolio market prices
+                config.debug(`📈 Portfolio AsOfDate ${asOfDate} already has historical price €${existingEntry.price}, keeping historical price (portfolio has €${marketPrice})`);
+                config.debug(`🔍 DEBUG: Preserving historical closing price over portfolio intraday price`);
             }
         }
 
@@ -462,11 +424,19 @@ class PortfolioCalculator {
                 .reduce((sum, entry) => sum + (entry.outstandingQuantity * this.currentPrice), 0);
             config.debug('💰 Manual price calculation result:', totalValue);
             return totalValue;
+        } else if (this.currentPrice) {
+            // Calculate using most recent price (from historical data or portfolio): outstanding shares * current price
+            // This ensures cards and timeline chart use the same current price
+            const totalValue = entries
+                .reduce((sum, entry) => sum + (entry.outstandingQuantity * this.currentPrice), 0);
+            config.debug(`💰 Current price calculation result: ${totalValue} (using price ${this.currentPrice})`);
+            return totalValue;
         } else {
-            // Calculate using market price from Excel: outstanding shares * market price
+            // Fallback to market price from Excel: outstanding shares * market price
             // This ensures we always use transaction currency, not display currency
             const totalValue = entries
                 .reduce((sum, entry) => sum + (entry.outstandingQuantity * entry.marketPrice), 0);
+            config.debug('💰 Fallback to market price from portfolio file');
             return totalValue;
         }
     }

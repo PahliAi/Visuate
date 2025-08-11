@@ -93,30 +93,49 @@ body {
 .banner-grid {
     display: grid;
     grid-template-columns: auto auto 1fr auto auto auto auto;
-    grid-template-rows: auto auto 20px;
+    grid-template-rows: 40px 40px 20px;
     gap: 8px 12px;
     align-items: center;
     justify-items: start;
     grid-template-areas: 
         "theme-label theme-dropdown logo language-label language-dropdown . ."
         ". . logo format-label format-dropdown . ."
-        ". . . . . . .";
+        ". . logo . . . .";
+    /* ESPP blue background - 20% darker than original */
+    background-color: #8FABD1;
+    padding: 20px;
+    border-radius: 12px;
+    position: relative;
+}
+
+/* Logo area (column 3) */
+.grid-item.logo-center {
+    grid-area: logo;
+    justify-self: center;
+    align-self: center;
+    display: flex;
+    align-items: center;
+    justify-content: center;
 }
 
 .grid-item.theme-label { grid-area: theme-label; }
 .grid-item.theme-dropdown { grid-area: theme-dropdown; }
-.grid-item.logo-center { grid-area: logo; justify-self: center; }
 .grid-item.language-label { grid-area: language-label; }
 .grid-item.language-dropdown { grid-area: language-dropdown; }
 .grid-item.format-label { grid-area: format-label; }
 .grid-item.format-dropdown { grid-area: format-dropdown; }
 
 .grid-item label {
-    color: var(--text-muted);
+    color: white;
     font-size: 14px;
     white-space: nowrap;
     min-width: 60px;
     text-align: left;
+    /* Enhanced contrast for blue ESPP background */
+    font-weight: 600;
+    text-shadow: 1px 1px 2px rgba(0,0,0,0.3);
+    position: relative;
+    z-index: 5;
 }
 
 
@@ -124,27 +143,34 @@ body {
 /* Grid item styling */
 .grid-item select {
     padding: 6px 10px;
-    border: 1px solid var(--border-color);
+    border: 1px solid rgba(255,255,255,0.3);
     border-radius: 4px;
-    background: var(--bg-secondary);
+    background: rgba(255,255,255,0.95);
     color: var(--text-primary);
     font-size: 14px;
     min-width: 100px;
-    transition: border-color 0.3s ease;
+    transition: all 0.3s ease;
+    /* Enhanced visibility over blue ESPP background */
+    box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+    position: relative;
+    z-index: 5;
 }
 
 .grid-item select:hover {
     border-color: var(--accent-color);
+    background: white;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.2);
 }
 
 .grid-item select:focus {
     outline: none;
     border-color: var(--accent-color);
-    box-shadow: 0 0 0 2px var(--accent-light);
+    background: white;
+    box-shadow: 0 0 0 2px var(--accent-light), 0 4px 12px rgba(0,0,0,0.2);
 }
 
 .grid-item.logo-center img {
-    max-height: 80px;
+    max-height: 120px; /* 45% bigger than original 80px (104 * 1.15 = 119.6 ≈ 120) */
     width: auto;
 }
 
@@ -897,8 +923,9 @@ body {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    gap: 20px;
+    gap: 15px;
     position: relative;
+    overflow: hidden; /* Prevent content from spilling outside */
 }
 
 /* Section Reorder */
@@ -906,27 +933,26 @@ body {
     display: flex;
     align-items: center;
     gap: 15px;
+    flex-shrink: 1;
+    min-width: 0; /* Allow shrinking */
 }
 
 .section-reorder label {
-    position: absolute;
-    right: calc(50% + 120px);
     color: var(--text-secondary);
     font-size: 12px;
     font-weight: 500;
     white-space: nowrap;
+    flex-shrink: 0;
 }
 
 .section-icons {
-    position: absolute;
-    left: 50%;
-    transform: translateX(-50%);
     display: flex;
     gap: 12px;
     padding: 8px 16px;
     border-radius: 8px;
     border: 1px solid var(--border-color);
     min-width: 200px;
+    flex-shrink: 1;
 }
 
 .section-icon {
@@ -969,12 +995,15 @@ body {
     align-items: center;
     gap: 12px;
     flex: 1;
+    min-width: 0; /* Allow shrinking */
+    overflow: hidden; /* Prevent overflow */
 }
 
 .results-actions {
     display: flex;
     align-items: center;
     gap: 15px;
+    flex-shrink: 0; /* Keep buttons from shrinking */
 }
 
 .price-source-indicator .indicator-dot {
@@ -991,6 +1020,10 @@ body {
 .price-source-indicator .indicator-text {
     color: var(--text-secondary);
     font-size: 14px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    min-width: 0;
 }
 
 /* Results Section */
@@ -1037,10 +1070,15 @@ body {
     background: var(--bg-secondary);
     border: var(--card-border);
     border-radius: 8px;
-    padding: 25px;
+    padding: 20px 15px;
     text-align: center;
     transition: all 0.3s;
     box-shadow: var(--card-shadow);
+    min-height: 120px;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    min-width: 0; /* Allow text to wrap properly */
 }
 
 .metric-card:hover {
@@ -1089,16 +1127,29 @@ body {
 
 .metric-card h3 {
     color: var(--text-muted);
-    font-size: 14px;
-    margin: 0 0 15px 0;
+    font-size: 11px;
+    margin: 0 0 auto 0;
     text-transform: uppercase;
-    letter-spacing: 1px;
+    letter-spacing: 0.5px;
+    line-height: 1.3;
+    font-weight: 500;
+    /* Ensure title takes minimal space and wraps properly */
+    word-wrap: break-word;
+    hyphens: auto;
+    flex-shrink: 0;
 }
 
 .metric-value {
-    font-size: 28px;
+    font-size: 24px;
     font-weight: 600;
     color: var(--text-primary);
+    line-height: 1.2;
+    margin-top: auto;
+    /* Prevent currency and number from breaking */
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    flex-shrink: 0;
 }
 
 .positive { color: var(--success-color); }
@@ -1200,6 +1251,49 @@ body {
     100% { transform: rotate(360deg); }
 }
 
+/* Medium screens - 4 column card layout */
+@media (max-width: 1100px) {
+    .metrics-section {
+        grid-template-columns: repeat(4, 1fr);
+        gap: 18px;
+    }
+    
+    .metric-card {
+        min-height: 115px;
+        padding: 18px 12px;
+    }
+    
+    .metric-card h3 {
+        font-size: 10px;
+    }
+    
+    .metric-value {
+        font-size: 22px;
+    }
+}
+
+/* Small screens - responsive controls */
+@media (max-width: 900px) {
+    .results-controls {
+        flex-direction: column;
+        gap: 15px;
+        align-items: stretch;
+    }
+    
+    .section-reorder {
+        justify-content: center;
+    }
+    
+    .section-icons {
+        min-width: auto;
+        justify-content: center;
+    }
+    
+    .results-actions {
+        justify-content: center;
+    }
+}
+
 /* Responsive Design */
 @media (max-width: 768px) {
     .container {
@@ -1220,7 +1314,22 @@ body {
     }
     
     .metrics-section {
-        grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+        grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+        gap: 15px;
+    }
+    
+    .metric-card {
+        min-height: 100px;
+        padding: 15px 10px;
+    }
+    
+    .metric-card h3 {
+        font-size: 10px;
+        margin-bottom: 8px;
+    }
+    
+    .metric-value {
+        font-size: 20px;
     }
     
     .theme-selector {
@@ -1237,6 +1346,23 @@ body {
     .step-number {
         align-self: center;
         margin-bottom: 15px;
+    }
+}
+
+/* Large screen optimization */
+@media (min-width: 1200px) {
+    .metric-card {
+        min-height: 140px;
+        padding: 25px 20px;
+    }
+    
+    .metric-card h3 {
+        font-size: 12px;
+        margin-bottom: 15px;
+    }
+    
+    .metric-value {
+        font-size: 26px;
     }
 }
 
