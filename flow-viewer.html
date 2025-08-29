@@ -1,0 +1,331 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Equate Application Flow Diagram - Current Architecture</title>
+    <script src="vendor/mermaid.min.js"></script>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            margin: 20px;
+            background-color: #f8f9fa;
+            line-height: 1.6;
+        }
+        .container {
+            max-width: 100%;
+            margin: 0 auto;
+            background: white;
+            padding: 30px;
+            border-radius: 12px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.1);
+        }
+        .diagram {
+            text-align: center;
+            margin: 30px 0;
+        }
+        h1 {
+            color: #2c3e50;
+            text-align: center;
+            margin-bottom: 10px;
+            font-size: 2.2em;
+        }
+        .version {
+            text-align: center;
+            color: #7f8c8d;
+            margin-bottom: 30px;
+            font-style: italic;
+        }
+        .legend {
+            background: #f8f9fa;
+            padding: 20px;
+            border-radius: 8px;
+            margin: 25px 0;
+            border-left: 4px solid #3498db;
+        }
+        .legend h3 {
+            margin-top: 0;
+            color: #2c3e50;
+            font-size: 1.2em;
+        }
+        .legend-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 10px;
+            margin-top: 15px;
+        }
+        .legend-item {
+            padding: 8px 12px;
+            border-radius: 6px;
+            font-size: 13px;
+            font-weight: 500;
+            text-align: center;
+        }
+        .user-action { background: #e3f2fd; border: 2px solid #1976d2; color: #1565c0; }
+        .service { background: #f3e5f5; border: 2px solid #7b1fa2; color: #6a1b9a; }
+        .processing { background: #fff3e0; border: 2px solid #f57c00; color: #ef6c00; }
+        .decision { background: #fff8e1; border: 2px solid #ffa000; color: #f57c00; }
+        .storage { background: #e8f5e8; border: 2px solid #388e3c; color: #2e7d32; }
+        .error { background: #ffebee; border: 2px solid #d32f2f; color: #c62828; }
+        .output { background: #f1f8e9; border: 2px solid #558b2f; color: #33691e; }
+        .new-feature { background: #e8eaf6; border: 2px solid #3f51b5; color: #303f9f; }
+        
+        .architecture-note {
+            background: #e1f5fe;
+            border: 1px solid #0277bd;
+            border-radius: 8px;
+            padding: 20px;
+            margin: 25px 0;
+        }
+        .architecture-note h4 {
+            color: #01579b;
+            margin-top: 0;
+        }
+        
+        .footer-info {
+            text-align: center;
+            color: #666;
+            margin-top: 40px;
+            padding-top: 20px;
+            border-top: 2px solid #ecf0f1;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Equate Application Flow Diagram</h1>
+        <div class="version">Current Architecture - Service-Based Design with EventBus</div>
+        
+        <div class="architecture-note">
+            <h4>🏗️ Current Architecture Highlights:</h4>
+            <ul>
+                <li><strong>Service-Based Architecture:</strong> EventBus, DOMManager, CurrencyService coordination</li>
+                <li><strong>ReferencePointsBuilder:</strong> Unified data extraction with multi-currency support using ratios</li>
+                <li><strong>Enhanced Currency System:</strong> Ratios for intraday price conversion vs end-of-day prices</li>
+                <li><strong>Investment Rules:</strong> 6-field validation system for transaction categorization</li>
+                <li><strong>Cache Management:</strong> Intelligent caching with validation and cleanup</li>
+                <li><strong>Multi-Language Support:</strong> 13 languages with automatic detection</li>
+            </ul>
+        </div>
+        
+        <div class="legend">
+            <h3>Component Legend:</h3>
+            <div class="legend-grid">
+                <span class="legend-item user-action">User Actions</span>
+                <span class="legend-item service">Core Services</span>
+                <span class="legend-item processing">File Processing</span>
+                <span class="legend-item decision">Decision Points</span>
+                <span class="legend-item storage">Data Storage</span>
+                <span class="legend-item error">Error Handling</span>
+                <span class="legend-item output">UI Output</span>
+                <span class="legend-item new-feature">New Features</span>
+            </div>
+        </div>
+        
+        <div class="diagram">
+            <div class="mermaid">
+                flowchart TD
+                    %% Application Initialization
+                    AppStart["🚀 Application Start<br/>EquateApp Constructor"] --> InitServices["Initialize Core Services<br/>EventBus, DOMManager"]
+                    InitServices --> CacheCheck{"💾 Cached Data<br/>Available?"}
+                    CacheCheck -->|"Yes"| ValidateCache["Validate Cached Data<br/>CacheManager.validateCache()"]
+                    CacheCheck -->|"No"| DefaultUpload["Default to Upload Tab"]
+                    
+                    ValidateCache --> CacheValid{"Cache Valid?"}
+                    CacheValid -->|"Yes"| AutoLoad["Auto-load Data & Switch to Results"]
+                    CacheValid -->|"No"| CleanCache["Clean Invalid Cache<br/>Show Upload Tab"]
+                    CleanCache --> DefaultUpload
+                    
+                    %% Service Architecture
+                    AutoLoad --> ServicesReady["🏗️ Services Initialized<br/>CurrencyService, ReferencePointsBuilder"]
+                    DefaultUpload --> ServicesReady
+                    ServicesReady --> EventBusSetup["EventBus Setup<br/>Service Communication"]
+                    EventBusSetup --> UIReady["UI Ready for User Input"]
+                    
+                    %% User Actions
+                    UIReady --> UserAction["👤 User Actions"]
+                    UserAction --> FileUpload["📁 Excel File Upload<br/>Portfolio + Transactions"]
+                    UserAction --> ManualPrice["💰 Manual Price Override"]
+                    UserAction --> CurrencySwitch["💱 Currency Switch<br/>(Instant with Ratios)"]
+                    UserAction --> SettingsChange["⚙️ Settings Change<br/>Theme/Language/Format"]
+                    
+                    %% File Upload Pipeline
+                    FileUpload --> FileAnalyzer["🔍 FileAnalyzer<br/>Pre-parsing Validation"]
+                    FileAnalyzer --> CurrencyDetection["Currency Detection<br/>25+ Currencies Supported"]
+                    FileAnalyzer --> LanguageDetection["Language Detection<br/>13 Languages Auto-detect"]
+                    FileAnalyzer --> CompanyDetection["Company Detection<br/>Allianz vs Others"]
+                    
+                    %% File Validation
+                    CurrencyDetection --> CurrencyValidation{"Currency<br/>Compatibility?"}
+                    CurrencyValidation -->|"Mismatch"| RejectFile["❌ Reject Transaction File<br/>Show Currency Error"]
+                    CurrencyValidation -->|"Valid"| ProcessFiles["Process Files"]
+                    RejectFile --> ClearIncompatible["Clear Incompatible Cached Data"]
+                    ClearIncompatible --> ProcessFiles
+                    
+                    %% File Parsing
+                    ProcessFiles --> FileParser["📊 FileParser<br/>Excel Processing with Multi-language"]
+                    FileParser --> DateFormatDetection{"Date Format<br/>Ambiguous?"}
+                    DateFormatDetection -->|"Yes"| UserDatePrompt["Prompt User for Format"]
+                    DateFormatDetection -->|"No"| AutoDateDetect["Auto-detect Format"]
+                    UserDatePrompt --> ParseData["Parse Portfolio & Transaction Data"]
+                    AutoDateDetect --> ParseData
+                    
+                    %% Data Processing with New Architecture
+                    ParseData --> ReferencePointsBuilder["🔧 ReferencePointsBuilder<br/>Unified Data Extraction"]
+                    ReferencePointsBuilder --> ExtractDates["Extract Reference Dates<br/>Portfolio + Transaction Dates"]
+                    ExtractDates --> LoadCurrencyRatios["Load Targeted Currency Ratios<br/>99.7% Data Reduction"]
+                    LoadCurrencyRatios --> BuildMultiCurrency["Build Multi-Currency Reference Points<br/>Using Ratios for Intraday Precision"]
+                    
+                    %% Investment Rules Processing
+                    BuildMultiCurrency --> InvestmentRules["📋 Investment Rules<br/>6-Field Validation System"]
+                    InvestmentRules --> CategorizeTransactions["Categorize Transactions<br/>User Investment, Company Match, etc."]
+                    CategorizeTransactions --> StoreData["Store in IndexedDB<br/>with Metadata & Categories"]
+                    
+                    %% Currency Service Integration
+                    StoreData --> CurrencyService["💱 CurrencyService<br/>Multi-Currency Calculations"]
+                    CurrencyService --> EventBusNotify["EventBus Notification<br/>CALCULATIONS_UPDATED"]
+                    EventBusNotify --> Calculator["🧮 Calculator<br/>Financial Calculations"]
+                    
+                    %% Calculations
+                    Calculator --> ROICalculations["ROI & Performance Metrics"]
+                    Calculator --> XIRRCalculations["XIRR Calculations"]
+                    Calculator --> TimelineGeneration["Portfolio Timeline with Transactions"]
+                    ROICalculations --> DisplayResults["Display Results"]
+                    XIRRCalculations --> DisplayResults
+                    TimelineGeneration --> DisplayResults
+                    
+                    %% Manual Price Override
+                    ManualPrice --> PriceOverride["Override AsOfDate Price"]
+                    PriceOverride --> EventBusUpdate["EventBus: MANUAL_PRICE_UPDATE"]
+                    EventBusUpdate --> RecalculateAll["Real-time Recalculation<br/>All Metrics & Charts"]
+                    RecalculateAll --> UpdateCharts["Update Charts with Manual Indicators"]
+                    
+                    %% Currency Switching (New Feature)
+                    CurrencySwitch --> InstantSwitch["⚡ Instant Currency Switch<br/>Using Pre-calculated Ratios"]
+                    InstantSwitch --> UpdatePricePointers["Update currentPrice Pointers<br/>No Recalculation Needed"]
+                    UpdatePricePointers --> RefreshUI["Refresh UI in <1ms"]
+                    
+                    %% Display and Visualization
+                    DisplayResults --> UpdateMetrics["📈 Update Metrics Cards<br/>with Number Formatting"]
+                    DisplayResults --> CreateCharts["Create Interactive Charts<br/>Plotly.js Rendering"]
+                    
+                    CreateCharts --> PortfolioChart["Portfolio Timeline Chart<br/>with Transaction Markers"]
+                    CreateCharts --> PerformanceChart["Performance Bar Chart<br/>ROI Breakdown by Category"]
+                    CreateCharts --> PieChart["Investment Sources Pie Chart<br/>Company Match vs User Investment"]
+                    
+                    %% Chart Formatting
+                    PortfolioChart --> ApplyFormatting["Apply Number Formatting<br/>US: 10,000.00 | EU: 10.000,00"]
+                    PerformanceChart --> ApplyFormatting
+                    PieChart --> ApplyFormatting
+                    ApplyFormatting --> LanguageLabels["Apply Language Labels<br/>13 Languages Supported"]
+                    LanguageLabels --> ChartRendering["Final Chart Rendering"]
+                    
+                    %% Settings Management
+                    SettingsChange --> ThemeChange{"Theme Change?"}
+                    SettingsChange --> LanguageChange{"Language Change?"}
+                    SettingsChange --> NumberFormatChange{"Number Format Change?"}
+                    
+                    ThemeChange -->|"Yes"| ApplyTheme["Apply Dark/Light Theme<br/>Re-render Charts"]
+                    LanguageChange -->|"Yes"| UpdateTranslations["Update All UI Text<br/>Chart Labels & Interface"]
+                    NumberFormatChange -->|"Yes"| ReformatNumbers["Update Number Display<br/>Charts & Metrics"]
+                    
+                    ApplyTheme --> SavePreferences["💾 Save Preferences<br/>to IndexedDB"]
+                    UpdateTranslations --> SavePreferences
+                    ReformatNumbers --> SavePreferences
+                    SavePreferences --> RefreshDisplay["Refresh Display<br/>with New Settings"]
+                    
+                    %% Export System
+                    ChartRendering --> ShowResults["📊 Show Results Tab<br/>Enable Export Options"]
+                    ShowResults --> ExportAction["📄 User Clicks Export"]
+                    ExportAction --> GenerateReport["Generate HTML Report<br/>Embedded Charts & Data"]
+                    GenerateReport --> ExportOptions["Export Options<br/>PDF/HTML/CSV"]
+                    ExportOptions --> DownloadFile["Download Generated File"]
+                    
+                    %% Error Handling System
+                    FileAnalyzer -.->|"Error"| ErrorHandler["🚨 Centralized Error Handler"]
+                    FileParser -.->|"Error"| ErrorHandler
+                    Calculator -.->|"Error"| ErrorHandler
+                    CurrencyService -.->|"Error"| ErrorHandler
+                    
+                    ErrorHandler --> ErrorType{"Error Classification"}
+                    ErrorType -->|"Currency Mismatch"| CurrencyAlert["Currency Compatibility Alert<br/>with Resolution Steps"]
+                    ErrorType -->|"File Format"| FileFormatAlert["File Format Error<br/>with Sample Files"]
+                    ErrorType -->|"Calculation"| CalcAlert["Calculation Error<br/>with Fallback Data"]
+                    ErrorType -->|"System"| SystemAlert["System Error<br/>with Recovery Options"]
+                    
+                    CurrencyAlert --> UserResponse["User Takes Corrective Action"]
+                    FileFormatAlert --> UserResponse
+                    CalcAlert --> UserResponse
+                    SystemAlert --> UserResponse
+                    UserResponse --> UserAction
+                    
+                    %% Database Storage Architecture
+                    StoreData --> IndexedDB[("🗄️ IndexedDB Storage<br/>portfolioData, historicalPrices,<br/>preferences, manualPrices")]
+                    SavePreferences --> IndexedDB
+                    
+                    %% Styling Classes
+                    classDef userAction fill:#e3f2fd,stroke:#1976d2,stroke-width:3px,color:#1565c0
+                    classDef service fill:#f3e5f5,stroke:#7b1fa2,stroke-width:3px,color:#6a1b9a
+                    classDef processing fill:#fff3e0,stroke:#f57c00,stroke-width:3px,color:#ef6c00
+                    classDef decision fill:#fff8e1,stroke:#ffa000,stroke-width:3px,color:#f57c00
+                    classDef storage fill:#e8f5e8,stroke:#388e3c,stroke-width:3px,color:#2e7d32
+                    classDef error fill:#ffebee,stroke:#d32f2f,stroke-width:3px,color:#c62828
+                    classDef output fill:#f1f8e9,stroke:#558b2f,stroke-width:3px,color:#33691e
+                    classDef newFeature fill:#e8eaf6,stroke:#3f51b5,stroke-width:3px,color:#303f9f
+                    
+                    %% Apply Classes
+                    class UserAction,FileUpload,ManualPrice,CurrencySwitch,SettingsChange,ExportAction,UserDatePrompt,UserResponse userAction
+                    class EventBusSetup,CurrencyService,ReferencePointsBuilder,EventBusNotify,EventBusUpdate service
+                    class FileAnalyzer,FileParser,Calculator,ParseData,ProcessFiles,DisplayResults processing
+                    class CacheCheck,CacheValid,CurrencyValidation,DateFormatDetection,ThemeChange,LanguageChange,NumberFormatChange,ErrorType decision
+                    class IndexedDB,StoreData,SavePreferences,LoadCurrencyRatios storage
+                    class ErrorHandler,RejectFile,CurrencyAlert,FileFormatAlert,CalcAlert,SystemAlert error
+                    class ShowResults,ChartRendering,RefreshDisplay,UpdateCharts,DownloadFile output
+                    class InstantSwitch,InvestmentRules,BuildMultiCurrency,UpdatePricePointers newFeature
+            </div>
+        </div>
+        
+        <div class="footer-info">
+            <strong>🎯 Equate Application - Current Architecture Flow</strong><br>
+            <em>Service-Based Design with EventBus Communication</em><br>
+            Features: Multi-Currency Ratios, Investment Rules, Instant Currency Switching, 13 Languages<br>
+            <small>Generated: 2025-08-27 | Architecture: Post-ReferencePointsBuilder Integration</small>
+        </div>
+    </div>
+
+    <script>
+        // Initialize Mermaid with enhanced configuration
+        mermaid.initialize({ 
+            startOnLoad: true,
+            theme: 'base',
+            themeVariables: {
+                primaryColor: '#3498db',
+                primaryTextColor: '#2c3e50',
+                primaryBorderColor: '#2980b9',
+                lineColor: '#34495e',
+                secondaryColor: '#ecf0f1',
+                tertiaryColor: '#f8f9fa',
+                background: '#ffffff',
+                mainBkg: '#ffffff',
+                secondBkg: '#f8f9fa',
+                tertiaryBkg: '#ecf0f1'
+            },
+            flowchart: {
+                useMaxWidth: true,
+                htmlLabels: true,
+                curve: 'basis',
+                padding: 20,
+                nodeSpacing: 50,
+                rankSpacing: 80
+            },
+            fontSize: 14,
+            fontFamily: 'Segoe UI, Tahoma, Geneva, Verdana, sans-serif'
+        });
+        
+        // Add click handler for better interactivity
+        document.addEventListener('DOMContentLoaded', function() {
+            console.log('🎯 Equate Flow Diagram Loaded - Current Architecture');
+        });
+    </script>
+</body>
+</html>

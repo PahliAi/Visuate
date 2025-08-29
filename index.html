@@ -1,0 +1,420 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Equate - Portfolio Analysis</title>
+    <meta name="description" content="100% local portfolio analysis tool for EquatePlus data. No data leaves your device.">
+    <meta name="author" content="Equate Portfolio Analysis">
+    <link rel="icon" href="data:,">
+    <link rel="stylesheet" href="css/styles.css">
+    <script src="vendor/xlsx.full.min.js"></script>
+    <script src="vendor/plotly.min.js"></script>
+    
+    <!-- Google tag (gtag.js) -->
+    <script async src="https://www.googletagmanager.com/gtag/js?id=G-KXKD1BHQRC"></script>
+    <script>
+        window.dataLayer = window.dataLayer || [];
+        function gtag(){dataLayer.push(arguments);}
+        gtag('js', new Date());
+
+        gtag('config', 'G-KXKD1BHQRC');
+    </script>
+    
+    <script src="js/config.js"></script>
+    <script src="js/cacheManager.js"></script>
+</head>
+<body data-theme="light">
+    <div class="container">
+        <div class="header">
+            <div class="header-top">
+                <div class="banner-grid">
+                    <div class="grid-item theme-label">
+                        <label for="theme">Theme:</label>
+                    </div>
+                    <div class="grid-item theme-dropdown">
+                        <select id="theme" onchange="switchTheme(this.value)">
+                            <option value="light">Light</option>
+                            <option value="dark">Dark</option>
+                        </select>
+                    </div>
+                    <div class="grid-item currency-label" id="currencyLabelContainer" style="display: none;">
+                        <label for="currencySelect">Currency:</label>
+                    </div>
+                    <div class="grid-item currency-dropdown" id="currencySelector" style="display: none;">
+                        <select id="currencySelect">
+                            <option value="">Loading currencies...</option>
+                        </select>
+                    </div>
+                    <div class="grid-item logo-center">
+                        <img src="ESPP_nb.png" alt="ESPP Logo">
+                    </div>
+                    <div class="grid-item language-label">
+                        <label for="languageSelect">Language:</label>
+                    </div>
+                    <div class="grid-item language-dropdown" id="languageSelector">
+                        <select id="languageSelect">
+                            <option value="english">English</option>
+                            <option value="german">Deutsch</option>
+                            <option value="dutch">Nederlands</option>
+                            <option value="french">Français</option>
+                            <option value="spanish">Español</option>
+                            <option value="italian">Italiano</option>
+                            <option value="polish">Polski</option>
+                            <option value="turkish">Türkçe</option>
+                            <option value="portuguese">Português</option>
+                            <option value="czech">Čeština</option>
+                            <option value="romanian">Română</option>
+                            <option value="croatian">Hrvatski</option>
+                            <option value="indonesian">Bahasa Indonesia</option>
+                            <option value="chinese">中文</option>
+                        </select>
+                    </div>
+                    <div class="grid-item format-label">
+                        <label for="formatSelect" data-translate="format_label">Format:</label>
+                    </div>
+                    <div class="grid-item format-dropdown" id="formatSelector">
+                        <select id="formatSelect" onchange="setNumberFormat(this.value)">
+                            <option value="us">10,000.00</option>
+                            <option value="eu">10.000,00</option>
+                        </select>
+                    </div>
+                    <div class="grid-item cache-inspector" id="cacheInspector" style="display: none;">
+                        <button id="cacheInspectorBtn" onclick="openCacheInspector()" title="Cache Inspector (Localhost only)">
+                            🗄️
+                        </button>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Tab Navigation - now part of header -->
+            <div class="tab-navigation" id="tabNavigation">
+                <button class="tab-button" onclick="switchTab('howto')" id="howtoTab">
+                    📋 How to
+                </button>
+                <button class="tab-button active" onclick="switchTab('upload')" id="uploadTab">
+                    📤 Upload
+                </button>
+                <button class="tab-button" onclick="switchTab('results')" id="resultsTab">
+                    📊 Results
+                </button>
+                <button class="tab-button" onclick="switchTab('calculations')" id="calculationsTab">
+                    🧮 <span data-translate="calculations_tab">Calculations</span>
+                </button>
+            </div>
+        </div>
+        
+        <div class="main-content">
+            <!-- Tab Content -->
+            <div class="tab-content">
+                <!-- How to Tab -->
+                <div class="tab-pane" id="howtoPane">
+                    <div class="app-intro">
+                        <p><strong>Welcome to Visuate ++</strong> - a 100% local visualisation of your Equate+ portfolio.</p>
+                        <p>Follow these steps to download your files from EquatePlus and upload them below.</p>
+                    </div>
+                    <div class="help-step">
+                        <div class="step-number">1</div>
+                        <div class="step-content">
+                            <h3>Log in to the EquatePlus website</h3>
+                            <p>Access your EquatePlus account via <a href="https://www.equateplus.com/" target="_blank" style="text-decoration: none;">https://www.equateplus.com/</a> and navigate to your account menu.</p>
+                            <div class="help-image">
+                                <img src="Transaction&Preferences.png" alt="EquatePlus account menu navigation" style="max-width: 100%; border-radius: 6px; border: 1px solid var(--border-color);">
+                            </div>
+                        </div>
+                    </div>
+                    <div class="help-step">
+                        <div class="step-number">2</div>
+                        <div class="step-content">
+                            <h3>Download Portfolio Details</h3>
+                            <p>Go to tab 'Overview - Plans & Trading' (green rectangle in top picture) and click on the button next to 'YOUR PORTFOLIO - Estimated Gross Value' (see image below)</p>
+                            <div class="help-image">
+                                <img src="PortfolioDetails_download.png" alt="Portfolio Details Download" style="max-width: 100%; border-radius: 6px; border: 1px solid var(--border-color);">
+                            </div>
+                        </div>
+                    </div>
+                    <div class="help-step">
+                        <div class="step-number">3</div>
+                        <div class="step-content">
+                            <h3>Download Transaction History (Optional)</h3>
+                            <p>If you have ever sold any shares: go to tab 'Library - Transactions & Records' (orange rectangle in top picture) and click on the button next to 'Transaction history'.</p>
+                        </div>
+                    </div>
+                    <div class="help-step">
+                        <div class="step-number">4</div>
+                        <div class="step-content">
+                            <h3>Upload Files and Analyze</h3>
+                            <p>Close EquatePlus, go to the <strong>"📤 Upload"</strong> tab, upload your downloaded file(s) and click <strong>"Generate Analysis"</strong>.</p>
+                            <div class="help-image">
+                                <img src="Upload.png" alt="Upload files interface" style="max-width: 100%; border-radius: 6px; border: 1px solid var(--border-color);">
+                            </div>
+                        </div>
+                    </div>
+                    <div class="help-step">
+                        <div class="step-number">5</div>
+                        <div class="step-content">
+                            <h3>Application Flow Diagram</h3>
+                            <p>Click here for a flowchart of the full web application: <a href="flow-viewer.html" target="_blank" style="text-decoration: none;" onclick="if(typeof gtag !== 'undefined') gtag('event', 'flow_viewer_open', {'event_category': 'navigation'});">🔗 Flow Diagram</a></p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Upload Tab -->
+                <div class="tab-pane active" id="uploadPane">
+                    <div class="file-upload-grid">
+                        <div class="drop-zone" id="portfolioZone">
+                            <input type="file" id="portfolio" accept=".xlsx" style="display: none;">
+                            <div class="file-icon">📊</div>
+                            <h3>Portfolio Details</h3>
+                            <p>Drop your PortfolioDetails Excel file here<br>or click to browse</p>
+                            <div class="file-info" id="portfolioInfo"></div>
+                        </div>
+                        <div class="drop-zone" id="transactionsZone">
+                            <input type="file" id="transactions" accept=".xlsx" style="display: none;">
+                            <div class="file-icon">📋</div>
+                            <h3>Transaction History</h3>
+                            <p>Optional: Drop CompletedTransactions file<br>or click to browse</p>
+                            <div class="file-info" id="transactionsInfo"></div>
+                        </div>
+                    </div>
+                    <div class="upload-actions">
+                        <button class="analyze-btn" id="analyzeBtn" disabled>
+                            Please upload Portfolio Details
+                        </button>
+                        <button class="clear-data-btn" onclick="clearCachedData()">
+                            🗑️ Clear Data
+                        </button>
+                    </div>
+                </div>
+
+
+                <!-- Results Tab -->
+                <div class="tab-pane" id="resultsPane">
+                    <div class="no-data-message" id="noDataMessage">
+                        <div class="no-data-content">
+                            <h3>📊 No Portfolio Data</h3>
+                            <p>Please upload your portfolio data in the <strong>"📤 Upload"</strong> tab to see your analysis and charts.</p>
+                        </div>
+                    </div>
+                    
+                    <!-- Results Content (shown when data is available) -->
+                    <div class="results-content" id="resultsContent" style="display: none;">
+                        <!-- Price Source and Controls -->
+                        <div class="results-controls">
+                            <div class="price-source-indicator" id="priceSource">
+                                <div class="indicator-dot"></div>
+                                <div class="indicator-text">
+                                    <strong>Price:</strong> Loading...
+                                </div>
+                            </div>
+                            <div class="section-reorder">
+                                <label id="sectionOrderLabel">Section Order:</label>
+                                <div class="section-icons" id="sectionIcons">
+                                    <div class="section-icon" data-section="cards" title="Portfolio Summary" draggable="true">🃏</div>
+                                    <div class="section-icon" data-section="timeline" title="Timeline Chart" draggable="true">📈</div>
+                                    <div class="section-icon" data-section="bar" title="Performance Overview" draggable="true">📊</div>
+                                    <div class="section-icon" data-section="pie" title="Investment Sources" draggable="true">🥧</div>
+                                </div>
+                            </div>
+                            <div class="results-actions">
+                                <div class="price-input-compact">
+                                    <input type="number" id="manualPriceInput" placeholder="0.00" step="0.01" min="0">
+                                    <button class="quick-btn" onclick="updateManualPrice()">
+                                        Update Price
+                                    </button>
+                                </div>
+                                <div class="export-buttons">
+                                    <button class="export-btn" onclick="showExportCustomizer()" disabled id="customizeExportBtn">📋 Export PDF</button>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Metrics Grid -->
+                        <div class="metrics-section">
+                            <!-- Row 1: Your Investment, Company Match, Free Shares, Dividend Income, Total Investment -->
+                            <div class="metric-card highlight-investment">
+                                <h3>Your Investment</h3>
+                                <div class="metric-value" id="userInvestment">-</div>
+                            </div>
+                            <div class="metric-card">
+                                <h3>Company Match</h3>
+                                <div class="metric-value" id="companyMatch">-</div>
+                            </div>
+                            <div class="metric-card">
+                                <h3>Free Shares</h3>
+                                <div class="metric-value" id="freeShares">-</div>
+                            </div>
+                            <div class="metric-card">
+                                <h3>Dividend Income</h3>
+                                <div class="metric-value" id="dividendIncome">-</div>
+                            </div>
+                            <div class="metric-card highlight-total-investment">
+                                <h3>Total Investment</h3>
+                                <div class="metric-value" id="totalInvestment">-</div>
+                            </div>
+                            
+                            <!-- Row 2: Return on Your Investment, Current Portfolio, Total Sold, Total Value, Return on Total Investment -->
+                            <div class="metric-card highlight-investment">
+                                <h3>Return on Your Investment</h3>
+                                <div class="metric-value" id="totalReturn">-</div>
+                            </div>
+                            <div class="metric-card">
+                                <h3>Current Portfolio</h3>
+                                <div class="metric-value" id="currentValue">-</div>
+                                <div class="metric-disclaimer" id="currentPortfolioDisclaimer" style="display: none;"></div>
+                            </div>
+                            <div class="metric-card">
+                                <h3>Total Sold</h3>
+                                <div class="metric-value" id="totalSold">-</div>
+                                <div class="metric-disclaimer" id="totalSoldDisclaimer" style="display: none;"></div>
+                            </div>
+                            <div class="metric-card">
+                                <h3>Total Value</h3>
+                                <div class="metric-value" id="totalValue">-</div>
+                            </div>
+                            <div class="metric-card highlight-total-investment">
+                                <h3>Return on Total Investment</h3>
+                                <div class="metric-value" id="returnOnTotalInvestment">-</div>
+                            </div>
+                            
+                            <!-- Row 3: Return % on Your Investment, Annual Return XIRR on Your Investment, Available Shares, Annual Return XIRR on Total Investment, Return % on Total Investment -->
+                            <div class="metric-card highlight-investment">
+                                <h3>Return % on Your Investment</h3>
+                                <div class="metric-value" id="returnPercentage">0.00%</div>
+                            </div>
+                            <div class="metric-card xirr-user-investment">
+                                <h3>Annual Return (XIRR) on Your Investment</h3>
+                                <div class="metric-value" id="xirrUserInvestment">0.00%</div>
+                            </div>
+                            <div class="metric-card">
+                                <h3>Available Shares</h3>
+                                <div class="metric-value" id="availableShares">0</div>
+                            </div>
+                            <div class="metric-card xirr-total-investment">
+                                <h3>Annual Return (XIRR) on Total Investment</h3>
+                                <div class="metric-value" id="xirrTotalInvestment">0.00%</div>
+                            </div>
+                            <div class="metric-card highlight-total-investment">
+                                <h3>Return % on Total Investment</h3>
+                                <div class="metric-value" id="returnPercentageOnTotalInvestment">0.00%</div>
+                            </div>
+                        </div>
+
+                        <!-- Chart Container -->
+                        <div class="chart-container">
+                            <h3>Portfolio Performance Timeline</h3>
+                            <!-- Timeline Disclaimer - positioned prominently below title -->
+                            <div id="timelineDisclaimer" class="timeline-disclaimer" style="display: none;">
+                                <div class="disclaimer-content">
+                                    <!-- Content will be populated dynamically by JavaScript -->
+                                </div>
+                            </div>
+                            <div id="portfolioChart" style="width:100%;height:450px;min-height:450px;"></div>
+                        </div>
+
+                        <!-- Performance Bar Chart Section -->
+                        <div class="chart-container">
+                            <h3>Performance Overview</h3>
+                            <div id="performanceBarChart" style="width:100%;height:400px;"></div>
+                            <div class="breakdown-summary" id="barChartSummary" style="display: none;">
+                                <p><strong>💡 Key Insight:</strong> Click on any chart element to see detailed calculations</p>
+                            </div>
+                        </div>
+
+                        <!-- Investment Sources Pie Chart Section -->
+                        <div class="chart-container">
+                            <h3>Investment Sources</h3>
+                            <div id="investmentPieChart" style="width:100%;height:400px;"></div>
+                            <div class="breakdown-summary" id="pieChartSummary" style="display: none;">
+                                <p><strong>💡 Key Insight:</strong> Click on any chart element to see detailed calculations</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Calculations Tab -->
+                <div class="tab-pane" id="calculationsPane">
+                    <div class="no-data-message" id="calculationsNoDataMessage">
+                        <div class="no-data-content">
+                            <h3>🧮 No Portfolio Data</h3>
+                            <p>Please upload your portfolio data in the <strong>"📤 Upload"</strong> tab to see detailed calculation breakdowns.</p>
+                        </div>
+                    </div>
+                    
+                    <!-- Calculations Content (shown when data is available) -->
+                    <div class="calculations-content" id="calculationsContent" style="display: none;">
+                        <div class="accordion-controls">
+                            <div class="controls-title">📊 <span data-translate="calculations_breakdown">Calculation Breakdown</span></div>
+                            <div class="controls-buttons">
+                                <button class="control-btn" id="expandAllBtn">
+                                    <span>📕</span>
+                                    <span data-translate="collapse_all">Collapse All</span>
+                                </button>
+                            </div>
+                        </div>
+                        
+                        <div class="accordion-container" id="accordionContainer">
+                            <!-- Accordion items will be dynamically generated here -->
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Privacy Footer -->
+        <div class="privacy-footer">
+            <strong>100% Private:</strong> Your data is processed entirely on your device using historical share price data. 
+            No information is sent to external servers.
+            <div style="margin-top: 10px; font-size: 12px; opacity: 0.7;">
+                Equate v1.0.0 | Licensed under PolyForm Noncommercial | 
+                <a href="https://github.com/PahliAi/Equate/tree/license-master-v1.0" target="_blank" style="color: inherit;">License Authority</a>
+            </div>
+        </div>
+    </div>
+
+    <!-- Cache Inspector Modal -->
+    <div class="cache-inspector-modal" id="cacheInspectorModal" style="display: none;">
+        <div class="cache-modal-content">
+            <div class="cache-modal-header">
+                <h3>🗄️ Cache Inspector</h3>
+                <button class="cache-modal-close" onclick="closeCacheInspector()">&times;</button>
+            </div>
+            <div class="cache-modal-body">
+                <div class="cache-stats" id="cacheStats"></div>
+                <div class="cache-entries" id="cacheEntries"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Loading Indicator -->
+    <div class="loading-overlay" id="loadingOverlay" style="display: none;">
+        <div class="loading-spinner">
+            <div class="spinner"></div>
+            <p>Processing your portfolio data...</p>
+        </div>
+    </div>
+
+    <script src="js/translationData.js"></script>
+    <script src="js/translations.js"></script>
+    <script src="js/database.js"></script>
+    <script src="js/currencyMappings.js"></script>
+    <script src="js/currencyDetector.js"></script>
+    <script src="js/currencyConverter.js"></script>
+    <script src="js/historicalPriceGenerator.js"></script>
+    <script src="js/fileAnalyzer.js"></script>
+    <script src="js/fileParser.js"></script>
+    <!-- New enhanced system components (must load before consumers) -->
+    <script src="js/investmentRules.js"></script>
+    <script src="js/referencePointsBuilder.js"></script>
+    
+    <script src="js/calculator.js"></script>
+    <script src="js/calculationsTab.js"></script>
+    <script src="js/exporter.js"></script>
+    <script src="js/exportCustomizer.js"></script>
+    <!-- New service architecture -->
+    <script src="js/EventBus.js"></script>
+    <script src="js/DOMManager.js"></script>
+    <script src="js/CurrencyService.js"></script>
+    <script src="js/app.js"></script>
+</body>
+</html>

@@ -1,0 +1,42 @@
+name: Auto-update stock and currency data
+
+on:
+  schedule:
+    - cron: "0 6 * * *"   # Every day at 06:00 UTC (8:00 AM CET)
+  workflow_dispatch:       # Manual run button
+
+jobs:
+  update-data:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write       # Needed to push changes
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: |
+          pip install --upgrade pip
+          pip install yfinance pandas openpyxl requests xlsxwriter
+
+      - name: Run daily multi-stock updater
+        id: update
+        run: python update-multi-stock.py
+
+      - name: Commit and push changes (if update succeeded)
+        if: steps.update.outcome != 'failure'  
+        run: |
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+          git add hist.xlsx
+          git commit -m "Auto-update stock and currency data" || echo "No changes to commit"
+          git push
+          echo "✅ Changes committed and pushed"
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

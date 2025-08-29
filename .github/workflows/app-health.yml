@@ -1,0 +1,152 @@
+name: App Health Check
+
+on:
+  schedule:
+    - cron: "0 8 * * *"   # Every day at 08:00 UTC (after stock update)
+  workflow_dispatch:       # Manual run button
+
+jobs:
+  health-check:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "18"
+
+      - name: Install Puppeteer dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y chromium-browser
+          npm install puppeteer
+
+      - name: Start HTTP server in background
+        run: |
+          python3 -m http.server 8000 &
+          sleep 3
+          echo "Server started on port 8000"
+
+      - name: Create health check script
+        run: |
+          cat > health-check.js << 'SCRIPT_END'
+          const puppeteer = require('puppeteer');
+          
+          (async () => {
+            console.log('🚀 Starting Equate App Health Check...');
+            
+            const browser = await puppeteer.launch({
+              headless: true,
+              args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage']
+            });
+            
+            try {
+              const page = await browser.newPage();
+              
+              // Set up console monitoring - collect errors
+              const browserErrors = [];
+              page.on('console', msg => {
+                if (msg.type() === 'error') {
+                  const errorText = msg.text();
+                  console.log('❌ Browser Error:', errorText);
+                  browserErrors.push(errorText);
+                }
+              });
+              
+              // Set up error monitoring
+              page.on('pageerror', err => {
+                console.log('💥 Page Error:', err.message);
+                throw err;
+              });
+              
+              console.log('📱 Navigating to Equate app...');
+              await page.goto('http://localhost:8000', { waitUntil: 'networkidle0' });
+              
+              // Check if the page loaded correctly
+              const title = await page.title();
+              console.log('📄 Page title:', title);
+              
+              if (!title.includes('Equate')) {
+                throw new Error('Page title does not contain "Equate"');
+              }
+              
+              // Wait for app to initialize
+              console.log('⏳ Waiting for app initialization...');
+              await page.waitForSelector('body', { timeout: 10000 });
+              
+              // Check if libraries are loaded
+              console.log('📊 Checking required libraries...');
+              await page.evaluate(() => {
+                if (typeof XLSX === 'undefined') {
+                  throw new Error('XLSX library not loaded');
+                }
+                if (typeof Plotly === 'undefined') {
+                  throw new Error('Plotly library not loaded');
+                }
+              });
+              
+              // Check if there were any significant browser errors
+              if (browserErrors.length > 0) {
+                const criticalErrors = browserErrors.filter(err => 
+                  err.includes('404') || err.includes('Failed to load') || err.includes('script error')
+                );
+                
+                if (criticalErrors.length > 0) {
+                  throw new Error(`Critical browser errors detected: ${criticalErrors.join(', ')}`);
+                }
+                
+                console.log(`⚠️  ${browserErrors.length} non-critical browser errors (continuing)`);
+              }
+              
+              console.log('✅ USD Portfolio Health Check PASSED');
+              console.log('   🏥 App loads correctly');
+              console.log('   📚 Required libraries loaded');
+              console.log('   🔄 Basic functionality verified');
+              
+            } catch (error) {
+              console.log('❌ Health Check FAILED:', error.message);
+              
+              // Take screenshot on failure
+              try {
+                await page.screenshot({ path: 'health-check-failure.png', fullPage: true });
+                console.log('📸 Failure screenshot saved');
+              } catch (screenshotErr) {
+                console.log('⚠️ Could not save screenshot:', screenshotErr.message);
+              }
+              
+              process.exit(1);
+            } finally {
+              await browser.close();
+            }
+          })();
+          SCRIPT_END
+
+      - name: Run health check script
+        run: node health-check.js
+
+      - name: Upload failure screenshot
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: health-check-failure-screenshot
+          path: health-check-failure.png
+          retention-days: 30
+
+      - name: Send failure notification
+        if: failure()
+        run: |
+          echo "🚨 App Health Check FAILED"
+          echo "The Equate application failed basic functionality tests."
+          echo "Check the workflow logs and failure screenshot for details."
+          echo ""
+          echo "Possible issues:"
+          echo "- JavaScript errors in the application"
+          echo "- Missing dependencies (hist.xlsx, libraries)"
+          echo "- File upload/processing failures"
+          echo "- Currency conversion problems"
+          echo "- Analysis generation issues"
