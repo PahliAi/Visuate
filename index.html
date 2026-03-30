@@ -2,11 +2,21 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <title>Equate - Portfolio Analysis</title>
     <meta name="description" content="100% local portfolio analysis tool for EquatePlus data. No data leaves your device.">
     <meta name="author" content="Equate Portfolio Analysis">
-    <link rel="icon" href="data:,">
+
+    <!-- PWA -->
+    <link rel="manifest" href="manifest.json">
+    <meta name="theme-color" content="#667eea" media="(prefers-color-scheme: light)">
+    <meta name="theme-color" content="#0f172a" media="(prefers-color-scheme: dark)">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="default">
+    <meta name="apple-mobile-web-app-title" content="Equate">
+    <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+    <link rel="icon" type="image/png" sizes="96x96" href="icons/icon-96x96.png">
+
     <link rel="stylesheet" href="css/styles.css">
     <script src="vendor/xlsx.full.min.js"></script>
     <script src="vendor/plotly.min.js"></script>
@@ -166,14 +176,14 @@
                             <input type="file" id="portfolio" accept=".xlsx" style="display: none;">
                             <div class="file-icon">📊</div>
                             <h3>Portfolio Details</h3>
-                            <p>Drop your PortfolioDetails Excel file here<br>or click to browse</p>
+                            <p><span class="desktop-hint">Drop your PortfolioDetails Excel file here<br>or click to browse</span><span class="mobile-hint">Tap to select your PortfolioDetails file</span></p>
                             <div class="file-info" id="portfolioInfo"></div>
                         </div>
                         <div class="drop-zone" id="transactionsZone">
                             <input type="file" id="transactions" accept=".xlsx" style="display: none;">
                             <div class="file-icon">📋</div>
                             <h3>Transaction History</h3>
-                            <p>Optional: Drop CompletedTransactions file<br>or click to browse</p>
+                            <p><span class="desktop-hint">Optional: Drop CompletedTransactions file<br>or click to browse</span><span class="mobile-hint">Optional: Tap to select CompletedTransactions file</span></p>
                             <div class="file-info" id="transactionsInfo"></div>
                         </div>
                     </div>
@@ -416,5 +426,19 @@
     <script src="js/DOMManager.js"></script>
     <script src="js/CurrencyService.js"></script>
     <script src="js/app.js"></script>
+
+    <!-- Service Worker Registration -->
+    <script>
+    if ('serviceWorker' in navigator) {
+        window.addEventListener('load', () => {
+            navigator.serviceWorker.register('./sw.js')
+                .then(reg => {
+                    console.log('SW registered, scope:', reg.scope);
+                    setInterval(() => reg.update(), 3600000);
+                })
+                .catch(err => console.warn('SW registration failed:', err));
+        });
+    }
+    </script>
 </body>
 </html>
