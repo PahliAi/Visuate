@@ -1410,10 +1410,16 @@ body {
     }
 
     .tab-button {
-        font-size: 13px;
-        padding: 12px 4px;
-        white-space: nowrap;
+        font-size: 11px;
+        padding: 10px 2px;
+        white-space: normal;
+        word-break: break-word;
+        line-height: 1.2;
         min-height: 48px; /* Touch target */
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        text-align: center;
     }
 
     /* --- Upload --- */
@@ -2564,26 +2570,26 @@ body {
     }
     
     .calculation-table {
-        font-size: 12px;
+        font-size: 11px;
     }
-    
+
     .calculation-table th,
     .calculation-table td {
-        padding: 8px 6px;
+        padding: 6px 4px;
+        white-space: normal;
+        word-break: break-word;
     }
-    
-    .calculation-table {
+
+    /* Wrap table in scrollable container without breaking table layout */
+    .calculation-details {
         overflow-x: auto;
-        display: block;
-        white-space: nowrap;
+        -webkit-overflow-scrolling: touch;
+        padding: 0 10px 10px 10px;
     }
-    
-    .calculation-table thead,
-    .calculation-table tbody,
-    .calculation-table tr {
-        display: table;
-        width: 100%;
-        table-layout: fixed;
+
+    .calculation-table {
+        min-width: 400px;
+        table-layout: auto;
     }
 }
 
