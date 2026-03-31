@@ -2983,12 +2983,19 @@ class EquateApp {
             }
 
             // Configuration
+            const isMobileTimeline = window.innerWidth <= 768;
+            if (isMobileTimeline) {
+                layout.margin = { l: 50, r: 20, t: 30, b: 60 };
+                layout.height = 280;
+                layout.legend = { x: 0, y: -0.3, orientation: 'h', bgcolor: 'rgba(255,255,255,0.8)' };
+                if (layout.xaxis) layout.xaxis.tickangle = -45;
+            }
             const plotlyConfig = {
                 responsive: true,
-                displayModeBar: true,
+                displayModeBar: !isMobileTimeline,
                 modeBarButtonsToRemove: ['pan2d', 'lasso2d', 'select2d'],
                 displaylogo: false,
-                scrollZoom: true
+                scrollZoom: !isMobileTimeline
             };
 
             // Create the chart - let it fill the container naturally
@@ -3254,9 +3261,17 @@ class EquateApp {
             }]
         };
 
+        const isMobilePie = window.innerWidth <= 768;
+        if (isMobilePie) {
+            pieLayout.margin = { t: 10, b: 80, l: 10, r: 10 };
+            pieLayout.legend.font = { size: 10 };
+            if (pieLayout.annotations && pieLayout.annotations[0]) {
+                pieLayout.annotations[0].font.size = 14;
+            }
+        }
         const pieConfig = {
             responsive: true,
-            displayModeBar: true,
+            displayModeBar: !isMobilePie,
             modeBarButtonsToRemove: ['pan2d', 'lasso2d', 'select2d', 'autoScale2d'],
             displaylogo: false,
             toImageButtonOptions: {
@@ -3442,9 +3457,16 @@ class EquateApp {
             }
         };
 
+        const isMobileBar = window.innerWidth <= 768;
+        if (isMobileBar) {
+            barLayout.margin = { t: 10, b: 80, l: 50, r: 10 };
+            barLayout.legend.font = { size: 10 };
+            barLayout.yaxis.tickfont = { color: fontColor, size: 9 };
+            barLayout.xaxis.tickfont = { color: fontColor, size: 9 };
+        }
         const barConfig = {
             responsive: true,
-            displayModeBar: true,
+            displayModeBar: !isMobileBar,
             modeBarButtonsToRemove: ['pan2d', 'lasso2d', 'select2d'],
             displaylogo: false,
             toImageButtonOptions: {

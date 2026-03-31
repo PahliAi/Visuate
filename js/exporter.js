@@ -679,9 +679,26 @@ class PortfolioExporter {
     }
 
     /**
-     * Download file to user's device
+     * Download file to user's device (uses native share sheet on mobile)
      */
-    downloadFile(blob, filename) {
+    async downloadFile(blob, filename) {
+        // On mobile with Web Share API, use native share sheet
+        if (/Mobi|Android/i.test(navigator.userAgent) && navigator.share && navigator.canShare) {
+            try {
+                const file = new File([blob], filename, { type: blob.type });
+                if (navigator.canShare({ files: [file] })) {
+                    await navigator.share({
+                        title: 'Portfolio Analysis Report',
+                        files: [file]
+                    });
+                    return;
+                }
+            } catch (err) {
+                if (err.name === 'AbortError') return; // User cancelled
+                // Fall through to download
+            }
+        }
+
         const link = document.createElement('a');
         link.href = URL.createObjectURL(blob);
         link.download = filename;
