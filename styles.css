@@ -42,6 +42,11 @@
     box-sizing: border-box;
 }
 
+html {
+    -webkit-text-size-adjust: 100%;
+    text-size-adjust: 100%;
+}
+
 body {
     font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
     background: var(--bg-primary);
@@ -49,6 +54,7 @@ body {
     padding: 15px;
     min-height: 100vh;
     transition: all 0.3s ease;
+    overscroll-behavior-y: contain;
 }
 
 .container {
@@ -1346,64 +1352,74 @@ body {
 
 /* Responsive Design */
 @media (max-width: 768px) {
+    body {
+        padding: 8px;
+    }
+
     .container {
         margin: 0;
         padding: 0;
+        border-radius: 8px;
     }
 
     .main-content {
-        padding: 12px;
+        padding: 0;
     }
 
     /* --- Header / Banner Grid --- */
     .header-top {
-        padding: 4px 8px;
+        padding: 4px 6px;
     }
 
     .banner-grid {
         display: grid;
-        grid-template-columns: auto 1fr auto;
+        grid-template-columns: auto 1fr;
         grid-template-rows: auto;
         grid-template-areas:
-            "logo logo logo"
-            "theme-label theme-dropdown ."
-            "language-label language-dropdown ."
-            "currency-label currency-dropdown ."
-            "format-label format-dropdown ."
-            "cache-inspector . .";
-        gap: 6px 10px;
+            "logo logo"
+            "theme-label theme-dropdown"
+            "language-label language-dropdown"
+            "currency-label currency-dropdown"
+            "format-label format-dropdown"
+            "cache-inspector .";
+        gap: 8px 12px;
         padding: 12px;
     }
 
     .grid-item.logo-center img {
-        max-height: 60px;
+        max-height: 56px;
     }
 
     .grid-item label {
-        font-size: 12px;
+        font-size: 13px;
         min-width: auto;
     }
 
     .grid-item select {
-        font-size: 13px;
-        min-width: 80px;
-        padding: 5px 8px;
+        font-size: 16px; /* Prevents iOS zoom on focus */
+        min-width: 0;
+        width: 100%;
+        padding: 8px 10px;
+        min-height: 44px; /* Touch target */
     }
 
     /* --- Tab Navigation --- */
     .tab-navigation {
-        padding: 0 4px;
+        padding: 0;
+        gap: 0;
     }
 
     .tab-button {
         font-size: 13px;
-        padding: 10px 6px;
+        padding: 12px 4px;
         white-space: nowrap;
+        min-height: 48px; /* Touch target */
     }
 
     /* --- Upload --- */
     .file-upload-grid {
         grid-template-columns: 1fr;
+        gap: 12px;
     }
 
     .quick-grid {
@@ -1419,28 +1435,41 @@ body {
         align-items: stretch;
     }
 
+    .analyze-btn {
+        min-height: 48px; /* Touch target */
+        font-size: 15px;
+    }
+
+    .clear-data-btn {
+        min-height: 44px; /* Touch target */
+    }
+
     .drop-zone {
         padding: 25px 15px;
+        min-height: 120px;
     }
 
     /* --- Metrics Cards --- */
     .metrics-section {
         grid-template-columns: repeat(2, 1fr);
-        gap: 10px;
+        gap: 8px;
     }
 
     .metric-card {
         min-height: 80px;
-        padding: 12px 8px;
+        padding: 10px 8px;
     }
 
     .metric-card h3 {
         font-size: 9px;
-        margin-bottom: 6px;
+        margin-bottom: 4px;
     }
 
     .metric-value {
-        font-size: 16px;
+        font-size: 14px;
+        white-space: normal;
+        word-break: break-word;
+        overflow-wrap: break-word;
     }
 
     /* --- Results Controls --- */
@@ -1453,6 +1482,10 @@ body {
 
     .price-source-indicator {
         font-size: 12px;
+    }
+
+    .price-source-indicator .indicator-text {
+        white-space: normal;
     }
 
     .section-reorder {
@@ -1468,8 +1501,8 @@ body {
     }
 
     .section-icon {
-        width: 32px;
-        height: 32px;
+        width: 40px;  /* Keep at 40px for touch target */
+        height: 40px;
         font-size: 20px;
     }
 
@@ -1484,14 +1517,34 @@ body {
 
     .price-input-compact input {
         flex: 1;
+        font-size: 16px; /* Prevents iOS zoom */
+        min-height: 44px;
+    }
+
+    .quick-btn, .export-btn {
+        min-height: 44px; /* Touch target */
     }
 
     /* --- Charts --- */
+    .chart-container {
+        padding: 12px;
+        margin-bottom: 15px;
+        border-radius: 6px;
+    }
+
     .chart-container h3 {
         font-size: 14px;
     }
 
     /* --- Help / How-to --- */
+    .app-intro {
+        padding: 15px;
+    }
+
+    .app-intro p {
+        font-size: 15px;
+    }
+
     .theme-selector {
         position: static;
         justify-content: center;
@@ -1501,11 +1554,20 @@ body {
     .help-step {
         flex-direction: column;
         text-align: center;
+        gap: 10px;
     }
 
     .step-number {
         align-self: center;
-        margin-bottom: 15px;
+        margin-bottom: 5px;
+    }
+
+    .step-content h3 {
+        font-size: 16px;
+    }
+
+    .step-content p {
+        font-size: 14px;
     }
 
     /* --- Privacy Footer --- */
@@ -1517,8 +1579,18 @@ body {
 
 /* Extra small screens (phones in portrait) */
 @media (max-width: 400px) {
+    body {
+        padding: 4px;
+    }
+
     .metrics-section {
         grid-template-columns: 1fr;
+        gap: 6px;
+    }
+
+    .metric-card {
+        min-height: 70px;
+        padding: 10px;
     }
 
     .metric-value {
@@ -1527,11 +1599,22 @@ body {
 
     .tab-button {
         font-size: 12px;
-        padding: 8px 4px;
+        padding: 10px 4px;
+        min-height: 44px;
     }
 
     .banner-grid {
         padding: 8px;
+        gap: 6px 8px;
+    }
+
+    .grid-item.logo-center img {
+        max-height: 44px;
+    }
+
+    .chart-container {
+        padding: 8px;
+        margin-bottom: 10px;
     }
 }
 
@@ -3164,8 +3247,13 @@ input, select, button {
 }
 
 /* Safe area insets for notched phones in standalone mode */
-body {
-    padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
+@supports (padding: env(safe-area-inset-top)) {
+    body {
+        padding-top: max(15px, env(safe-area-inset-top));
+        padding-right: max(15px, env(safe-area-inset-right));
+        padding-bottom: max(15px, env(safe-area-inset-bottom));
+        padding-left: max(15px, env(safe-area-inset-left));
+    }
 }
 
 /* Mobile/desktop hint text */
@@ -3183,11 +3271,24 @@ body {
 
     /* Reduce chart heights on mobile */
     #portfolioChart {
-        height: 300px !important;
-        min-height: 300px !important;
+        height: 280px !important;
+        min-height: 280px !important;
     }
     #performanceBarChart,
     #investmentPieChart {
-        height: 300px !important;
+        height: 280px !important;
+    }
+
+    /* Prevent horizontal scroll from charts */
+    .chart-container {
+        overflow-x: hidden;
+    }
+}
+
+/* Prevent iOS rubber-banding issues in PWA standalone mode */
+@media (display-mode: standalone) {
+    html, body {
+        overflow: auto;
+        -webkit-overflow-scrolling: touch;
     }
 }
