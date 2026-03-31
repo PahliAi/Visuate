@@ -2988,14 +2988,20 @@ class EquateApp {
                 layout.margin = { l: 50, r: 20, t: 30, b: 60 };
                 layout.height = 280;
                 layout.legend = { x: 0, y: -0.3, orientation: 'h', bgcolor: 'rgba(255,255,255,0.8)' };
-                if (layout.xaxis) layout.xaxis.tickangle = -45;
+                layout.dragmode = false;  // Disable drag-to-zoom on mobile (conflicts with scroll)
+                layout.hovermode = false; // Disable hover on mobile (triggers on every touch)
+                if (layout.xaxis) {
+                    layout.xaxis.tickangle = -45;
+                    layout.xaxis.fixedrange = true;  // Disable pinch zoom on x-axis
+                }
+                if (layout.yaxis) layout.yaxis.fixedrange = true;  // Disable pinch zoom on y-axis
             }
             const plotlyConfig = {
                 responsive: true,
                 displayModeBar: !isMobileTimeline,
                 modeBarButtonsToRemove: ['pan2d', 'lasso2d', 'select2d'],
                 displaylogo: false,
-                scrollZoom: !isMobileTimeline
+                scrollZoom: false
             };
 
             // Create the chart - let it fill the container naturally
@@ -3265,6 +3271,8 @@ class EquateApp {
         if (isMobilePie) {
             pieLayout.margin = { t: 10, b: 80, l: 10, r: 10 };
             pieLayout.legend.font = { size: 10 };
+            pieLayout.hovermode = false;
+            pieLayout.dragmode = false;
             if (pieLayout.annotations && pieLayout.annotations[0]) {
                 pieLayout.annotations[0].font.size = 14;
             }
@@ -3274,6 +3282,7 @@ class EquateApp {
             displayModeBar: !isMobilePie,
             modeBarButtonsToRemove: ['pan2d', 'lasso2d', 'select2d', 'autoScale2d'],
             displaylogo: false,
+            scrollZoom: false,
             toImageButtonOptions: {
                 format: 'png',
                 filename: 'investment_sources',
@@ -3463,12 +3472,17 @@ class EquateApp {
             barLayout.legend.font = { size: 10 };
             barLayout.yaxis.tickfont = { color: fontColor, size: 9 };
             barLayout.xaxis.tickfont = { color: fontColor, size: 9 };
+            barLayout.hovermode = false;
+            barLayout.dragmode = false;
+            if (barLayout.xaxis) barLayout.xaxis.fixedrange = true;
+            if (barLayout.yaxis) barLayout.yaxis.fixedrange = true;
         }
         const barConfig = {
             responsive: true,
             displayModeBar: !isMobileBar,
             modeBarButtonsToRemove: ['pan2d', 'lasso2d', 'select2d'],
             displaylogo: false,
+            scrollZoom: false,
             toImageButtonOptions: {
                 format: 'png',
                 filename: 'performance_overview',
